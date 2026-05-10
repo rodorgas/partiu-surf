@@ -1734,8 +1734,8 @@ export function Desktop({
       <main style={{ flex: "1 1 auto", overflow: "auto" }}>
         <TopBar spot={spot} gear={gear} date={d} today={t} />
         <Hero data={data} />
-        <HourTable data={data} />
         <SideCards data={data} />
+        <HourTable data={data} />
       </main>
     </div>
   );
