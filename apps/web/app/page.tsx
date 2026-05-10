@@ -1,18 +1,9 @@
-import { Desktop } from "@/components/Desktop";
-import { Mobile } from "@/components/Mobile";
-import { MOCK_FORECAST } from "@/lib/data";
+// Root route — redirects to the default spot. Phase 5 will swap this for a
+// geolocation-aware picker; for now the design's headline spot is fine.
+
+import { redirect } from "next/navigation";
+import { DEFAULT_SPOT_SLUG } from "@/lib/spots";
 
 export default function Page() {
-  // Phase 3 will swap MOCK_FORECAST for a getForecast() call against Open-Meteo + WorldTides.
-  const data = MOCK_FORECAST;
-  return (
-    <>
-      <div className="layout-desktop">
-        <Desktop data={data} />
-      </div>
-      <div className="layout-mobile">
-        <Mobile data={data} />
-      </div>
-    </>
-  );
+  redirect(`/${DEFAULT_SPOT_SLUG}`);
 }

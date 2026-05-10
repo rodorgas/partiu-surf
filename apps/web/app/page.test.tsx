@@ -1,16 +1,16 @@
-import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
-import Page from "./page";
+import { describe, expect, it, vi } from "vitest";
 
-describe("<Page />", () => {
-  it("renders both the desktop and mobile wrappers", () => {
-    const { container } = render(<Page />);
-    expect(container.querySelector(".layout-desktop")).not.toBeNull();
-    expect(container.querySelector(".layout-mobile")).not.toBeNull();
-  });
+// next/navigation's `redirect` throws a NEXT_REDIRECT sentinel — we just verify
+// that Page() invokes it with the default slug. No DOM rendering needed.
+vi.mock("next/navigation", () => ({
+  redirect: vi.fn((url: string) => {
+    throw new Error(`__REDIRECT__:${url}`);
+  }),
+}));
 
-  it("contains the Itamambuca spot title in the document", () => {
-    const { container } = render(<Page />);
-    expect(container.textContent).toContain("Itamambuca");
+describe("<Page /> (root)", () => {
+  it("redirects to the default spot slug", async () => {
+    const { default: Page } = await import("./page");
+    expect(() => Page()).toThrowError(/__REDIRECT__:\/itamambuca/);
   });
 });
