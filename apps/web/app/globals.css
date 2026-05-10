@@ -1,0 +1,46 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #f5e8d2;
+  height: 100%;
+  overflow: hidden;
+}
+body {
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  color: #1d2a30;
+}
+#__next, html, body {
+  height: 100%;
+}
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+button {
+  font-family: inherit;
+}
+input, textarea {
+  font-family: inherit;
+  color: inherit;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #e1cfa6;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+@keyframes bouncedot {
+  0%, 80%, 100% { opacity: .3; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
+}
+
+.layout-desktop { display: block; height: 100%; }
+.layout-mobile  { display: none;  height: 100%; }
+@media (max-width: 768px) {
+  .layout-desktop { display: none; }
+  .layout-mobile  { display: block; }
+}
