@@ -81,17 +81,15 @@ function makeFakeStream(chunks: string[]): ReadableStream<Uint8Array> {
       for (const text of chunks) {
         controller.enqueue(
           encoder.encode(
-            `event: content_block_delta\ndata: ${JSON.stringify({
+            JSON.stringify({
               type: "content_block_delta",
               delta: { type: "text_delta", text },
-            })}\n\n`,
+            }) + "\n",
           ),
         );
       }
       controller.enqueue(
-        encoder.encode(
-          `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
-        ),
+        encoder.encode(JSON.stringify({ type: "message_stop" }) + "\n"),
       );
       controller.close();
     },
@@ -193,12 +191,10 @@ describe("POST /api/chat", () => {
       const { done, value } = await reader.read();
       if (done) break;
       buf += decoder.decode(value, { stream: true });
-      const frames = buf.split("\n\n");
-      buf = frames.pop() ?? "";
-      for (const frame of frames) {
-        const dataLine = frame.split("\n").find((l) => l.startsWith("data: "));
-        if (!dataLine) continue;
-        const json = dataLine.slice(6).trim();
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
+      for (const line of lines) {
+        const json = line.trim();
         if (!json) continue;
         try {
           const evt = JSON.parse(json) as {

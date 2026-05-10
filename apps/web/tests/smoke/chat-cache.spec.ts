@@ -13,9 +13,9 @@ test.describe("chat prompt-cache smoke", () => {
   test.skip(!HAS_KEY, "ANTHROPIC_API_KEY not set — skipping cache smoke.");
 
   // The route returns the stream directly; the SDK's toReadableStream() emits
-  // a `message_delta` (or message_stop, depending on SDK version) frame near
-  // the end carrying `usage` for the call. We scrape that. If the SDK ever
-  // changes its event shape, this test will need updating.
+  // newline-delimited JSON, one event per line. A `message_start` /
+  // `message_delta` frame near the end carries `usage` for the call. We scrape
+  // that. If the SDK ever changes its event shape, this test will need updating.
 
   async function chat(request: import("@playwright/test").APIRequestContext) {
     const res = await request.post("/api/chat", {
@@ -29,12 +29,12 @@ test.describe("chat prompt-cache smoke", () => {
     });
     expect(res.status()).toBe(200);
     const body = await res.text();
-    // Scan for the message_delta / message_stop frame containing usage.
     let cacheRead = -1;
     for (const line of body.split("\n")) {
-      if (!line.startsWith("data: ")) continue;
+      const trimmed = line.trim();
+      if (!trimmed) continue;
       try {
-        const evt = JSON.parse(line.slice(6));
+        const evt = JSON.parse(trimmed);
         const usage = evt?.message?.usage ?? evt?.usage;
         if (usage && typeof usage.cache_read_input_tokens === "number") {
           cacheRead = usage.cache_read_input_tokens;

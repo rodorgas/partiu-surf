@@ -186,9 +186,9 @@ export async function POST(req: Request) {
 }
 
 /**
- * Build an SSE stream that emits a single text_delta + message_stop event
- * carrying the given text. Mirrors the shape of the Anthropic SDK's
- * toReadableStream() output so the client parser doesn't have to branch.
+ * Build a stream that emits a single text_delta + message_stop event carrying
+ * the given text. Mirrors the shape of the Anthropic SDK's toReadableStream()
+ * output (newline-delimited JSON, one event per line).
  */
 function stubSSEStream(text: string): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
@@ -203,7 +203,7 @@ function stubSSEStream(text: string): ReadableStream<Uint8Array> {
         { type: "message_stop" },
       ];
       for (const ev of events) {
-        controller.enqueue(encoder.encode(`event: ${ev.type}\ndata: ${JSON.stringify(ev)}\n\n`));
+        controller.enqueue(encoder.encode(JSON.stringify(ev) + "\n"));
       }
       controller.close();
     },
