@@ -10,6 +10,11 @@ import { test, expect } from "@playwright/test";
  * Production (post-deploy):
  *   curl -fsS https://partiu-surf.vercel.app/api/health | jq -e '.ok == true'
  */
+test.skip(
+  !process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN,
+  "Skipped: Upstash not configured (Phase 2 provisions it).",
+);
+
 test("GET /api/health returns ok=true with numeric latency", async ({
   request,
 }) => {

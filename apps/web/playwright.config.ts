@@ -3,6 +3,9 @@ import { defineConfig, devices } from "@playwright/test";
 const PORT = process.env.PORT ?? "3000";
 const BASE_URL = `http://localhost:${PORT}`;
 
+// Single chromium project — individual tests pin their own viewport via `test.use()`.
+// Phase 5 can split into desktop/mobile projects + add webkit if we need real Safari
+// behavior; for Phase 1 smoke parity, chromium covers the UI assertions cheaply.
 export default defineConfig({
   testDir: "./tests/smoke",
   fullyParallel: false,
@@ -16,12 +19,8 @@ export default defineConfig({
   },
   projects: [
     {
-      name: "desktop",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
-    },
-    {
-      name: "mobile",
-      use: { ...devices["iPhone 13"] },
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
   webServer: {
