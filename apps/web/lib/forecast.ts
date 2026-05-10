@@ -17,7 +17,19 @@ import path from "node:path";
 import { getCached, setCached } from "./cache";
 import type { Forecast, ForecastHour, TideState } from "./data";
 import { MOCK_FORECAST } from "./data";
+import type { GearKey } from "./forecast-shared";
 import { getSpot, type Spot } from "./spots";
+
+// Re-export client-safe helpers so server callers can keep importing
+// everything from `lib/forecast`. Client components must import directly
+// from `lib/forecast-shared` (this module pulls in node:child_process).
+export {
+  buildSpotUrl,
+  FORECAST_DAY_COUNT,
+  normalizeDate,
+  normalizeGear,
+  type GearKey,
+} from "./forecast-shared";
 
 /** Raw shape returned by api/forecast.py. */
 export type RawForecastHour = {
@@ -58,13 +70,6 @@ export type RawForecast = {
 };
 
 const FORECAST_NAMESPACE = "forecast";
-
-export type GearKey = "all" | "bb" | "short" | "trekkinho";
-const VALID_GEAR: readonly GearKey[] = ["all", "bb", "short", "trekkinho"];
-
-export function normalizeGear(input: string | undefined | null): GearKey {
-  return VALID_GEAR.includes(input as GearKey) ? (input as GearKey) : "all";
-}
 
 /**
  * Public entry point — used by app/[spot]/page.tsx.
