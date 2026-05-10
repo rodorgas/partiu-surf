@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Desktop } from "./Desktop";
 import { MOCK_FORECAST } from "@/lib/data";
 
@@ -45,5 +45,162 @@ describe("<Desktop />", () => {
     for (const s of MOCK_FORECAST.suggestions) {
       expect(screen.getByRole("button", { name: new RegExp(s.replace(/\?/g, "\\?")) })).toBeInTheDocument();
     }
+  });
+});
+
+// ---- chat behavior (Phase 4) ---------------------------------------------
+
+type StreamControls = {
+  push: (text: string) => Promise<void>;
+  close: () => Promise<void>;
+};
+
+/**
+ * Build a Response with a manually-driven SSE body. Each `push(text)` enqueues
+ * a content_block_delta frame; `close()` closes the stream so the consumer's
+ * reader loop exits.
+ */
+function fakeSSEResponse(status = 200): { res: Response; ctrl: StreamControls } {
+  let controller: ReadableStreamDefaultController<Uint8Array>;
+  const encoder = new TextEncoder();
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      controller = c;
+    },
+  });
+  const ctrl: StreamControls = {
+    async push(text: string) {
+      controller.enqueue(
+        encoder.encode(
+          `event: content_block_delta\ndata: ${JSON.stringify({
+            type: "content_block_delta",
+            delta: { type: "text_delta", text },
+          })}\n\n`,
+        ),
+      );
+    },
+    async close() {
+      controller.enqueue(
+        encoder.encode(
+          `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
+        ),
+      );
+      controller.close();
+    },
+  };
+  return {
+    res: new Response(body, {
+      status,
+      headers: { "Content-Type": "text/event-stream" },
+    }),
+    ctrl,
+  };
+}
+
+describe("<Desktop /> chat", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("posts to /api/chat on submit and renders tokens progressively", async () => {
+    const { res, ctrl } = fakeSSEResponse();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(res);
+
+    render(<Desktop data={MOCK_FORECAST} spot="itamambuca" />);
+    const input = screen.getByPlaceholderText("pergunta sobre a previsão…");
+    fireEvent.change(input, { target: { value: "vale ir agora?" } });
+    fireEvent.submit(input.closest("form")!);
+
+    // User message appears immediately.
+    await waitFor(() => {
+      expect(screen.getByText("vale ir agora?")).toBeInTheDocument();
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/chat",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining("itamambuca"),
+      }),
+    );
+
+    // First chunk → streaming bubble grows.
+    await act(async () => {
+      await ctrl.push("bom dia,");
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-streaming")).toHaveTextContent("bom dia,");
+    });
+
+    await act(async () => {
+      await ctrl.push(" tá rendendo.");
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-streaming")).toHaveTextContent(
+        "bom dia, tá rendendo.",
+      );
+    });
+
+    // Close the stream → final message moves into history.
+    await act(async () => {
+      await ctrl.close();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("chat-streaming")).toBeNull();
+      expect(
+        screen.getByText("bom dia, tá rendendo.", { exact: false }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("renders an amber rate-limit bubble on 429", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "rate_limited",
+          message: "Volta em 12 min.",
+          remaining: 0,
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    render(<Desktop data={MOCK_FORECAST} spot="itamambuca" />);
+    const input = screen.getByPlaceholderText("pergunta sobre a previsão…");
+    fireEvent.change(input, { target: { value: "spam" } });
+    fireEvent.submit(input.closest("form")!);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-error-rate_limit")).toHaveTextContent(
+        "Volta em 12 min.",
+      );
+    });
+  });
+
+  it("clicking a suggestion fires a chat send (no second click)", async () => {
+    const { res, ctrl } = fakeSSEResponse();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(res);
+
+    render(<Desktop data={MOCK_FORECAST} spot="itamambuca" />);
+    const first = MOCK_FORECAST.suggestions[0];
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: new RegExp(first.replace(/\?/g, "\\?")),
+      }),
+    );
+
+    // The user bubble (full match) shows up — proof the send fired without
+    // a second button click on submit.
+    await waitFor(() => {
+      expect(screen.getByText(first)).toBeInTheDocument();
+    });
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // Drain so the test cleans up.
+    await act(async () => {
+      await ctrl.push("ok");
+      await ctrl.close();
+    });
   });
 });
