@@ -9,10 +9,16 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-const getForecastMock = vi.fn<(slug: string, date: string) => Promise<Forecast>>();
-vi.mock("@/lib/forecast", () => ({
-  getForecast: (slug: string, date: string) => getForecastMock(slug, date),
-}));
+const getForecastMock =
+  vi.fn<(slug: string, date: string, gear?: string) => Promise<Forecast>>();
+vi.mock("@/lib/forecast", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/forecast")>();
+  return {
+    ...actual,
+    getForecast: (slug: string, date: string, gear?: string) =>
+      getForecastMock(slug, date, gear),
+  };
+});
 
 describe("<SpotPage />", () => {
   it("generateStaticParams() includes every known slug", async () => {
@@ -27,18 +33,54 @@ describe("<SpotPage />", () => {
     getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
     const mod = await import("./page");
     const SpotPage = mod.default;
-    const ui = await SpotPage({ params: Promise.resolve({ spot: "itamambuca" }) });
+    const ui = await SpotPage({
+      params: Promise.resolve({ spot: "itamambuca" }),
+      searchParams: Promise.resolve({}),
+    });
     const { container } = render(ui);
     expect(container.querySelector(".layout-desktop")).not.toBeNull();
     expect(container.querySelector(".layout-mobile")).not.toBeNull();
     expect(container.textContent).toContain("Itamambuca");
   });
 
+  it("threads ?gear= through to getForecast", async () => {
+    getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
+    const mod = await import("./page");
+    const SpotPage = mod.default;
+    await SpotPage({
+      params: Promise.resolve({ spot: "itamambuca" }),
+      searchParams: Promise.resolve({ gear: "bb" }),
+    });
+    expect(getForecastMock).toHaveBeenCalledWith(
+      "itamambuca",
+      expect.any(String),
+      "bb",
+    );
+  });
+
+  it("falls back to 'all' when ?gear= is unknown", async () => {
+    getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
+    const mod = await import("./page");
+    const SpotPage = mod.default;
+    await SpotPage({
+      params: Promise.resolve({ spot: "itamambuca" }),
+      searchParams: Promise.resolve({ gear: "rocketship" }),
+    });
+    expect(getForecastMock).toHaveBeenCalledWith(
+      "itamambuca",
+      expect.any(String),
+      "all",
+    );
+  });
+
   it("calls notFound() for an unknown slug", async () => {
     const mod = await import("./page");
     const SpotPage = mod.default;
     await expect(
-      SpotPage({ params: Promise.resolve({ spot: "atlantis" }) }),
+      SpotPage({
+        params: Promise.resolve({ spot: "atlantis" }),
+        searchParams: Promise.resolve({}),
+      }),
     ).rejects.toThrow(/__NOT_FOUND__/);
   });
 });

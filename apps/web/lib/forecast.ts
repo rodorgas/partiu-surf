@@ -59,6 +59,13 @@ export type RawForecast = {
 
 const FORECAST_NAMESPACE = "forecast";
 
+export type GearKey = "all" | "bb" | "short" | "trekkinho";
+const VALID_GEAR: readonly GearKey[] = ["all", "bb", "short", "trekkinho"];
+
+export function normalizeGear(input: string | undefined | null): GearKey {
+  return VALID_GEAR.includes(input as GearKey) ? (input as GearKey) : "all";
+}
+
 /**
  * Public entry point — used by app/[spot]/page.tsx.
  *
@@ -70,15 +77,16 @@ const FORECAST_NAMESPACE = "forecast";
 export async function getForecast(
   slug: string,
   date: string,
+  gear: GearKey = "all",
 ): Promise<Forecast> {
   const spot = getSpot(slug);
   if (!spot) throw new Error(`unknown spot: ${slug}`);
 
-  const cacheKey = `${slug}:${date}`;
+  const cacheKey = `${slug}:${date}:${gear}`;
   const cached = await safeGetCached(cacheKey);
   if (cached) return cached;
 
-  const raw = await fetchRawForecast(spot, date);
+  const raw = await fetchRawForecast(spot, date, gear);
   const forecast = adaptRawToForecast(raw, spot);
   await safeSetCached(cacheKey, forecast);
   return forecast;
@@ -118,6 +126,7 @@ function isRedisMisconfigured(err: unknown): boolean {
 export async function fetchRawForecast(
   spot: Spot,
   date: string,
+  gear: GearKey = "all",
 ): Promise<RawForecast> {
   const payload = {
     slug: spot.slug,
@@ -130,6 +139,7 @@ export async function fetchRawForecast(
     breakType: spot.breakType,
     tidePref: spot.tidePref,
     shelter: spot.shelter,
+    gear,
     date,
   };
 

@@ -1,7 +1,59 @@
 "use client";
 // Shared mobile primitives — palette + reusable bits used by the mobile shell.
 
-import type { ForecastHour } from "@/lib/data";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
+import type { Forecast, ForecastHour } from "@/lib/data";
+import { dirLabel } from "@/lib/data";
+import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
+import type { GearKey } from "@/lib/forecast";
+
+function normalizeText(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+
+function filterSpots(query: string): Spot[] {
+  const q = normalizeText(query.trim());
+  if (!q) return Object.values(SPOTS);
+  return Object.values(SPOTS).filter(
+    (s) =>
+      normalizeText(s.name).includes(q) ||
+      normalizeText(s.region).includes(q) ||
+      s.state.toLowerCase().includes(q),
+  );
+}
+
+function groupByState(spots: Spot[]): Array<[StateUF, Spot[]]> {
+  const buckets = new Map<StateUF, Spot[]>();
+  for (const s of spots) {
+    const bucket = buckets.get(s.state);
+    if (bucket) bucket.push(s);
+    else buckets.set(s.state, [s]);
+  }
+  return STATE_ORDER
+    .filter((uf) => buckets.has(uf))
+    .map((uf) => [uf, buckets.get(uf)!] as [StateUF, Spot[]]);
+}
+
+function countByState(): Record<StateUF, number> {
+  const counts = {} as Record<StateUF, number>;
+  for (const uf of STATE_ORDER) counts[uf] = 0;
+  for (const s of Object.values(SPOTS)) counts[s.state] += 1;
+  return counts;
+}
+
+type Region = StateUF | "all";
+
+const GEAR_LABELS: Record<GearKey, string> = {
+  all: "Auto",
+  bb: "BB",
+  short: "Short",
+  trekkinho: "Trekkinho",
+};
+const GEAR_ORDER: GearKey[] = ["all", "bb", "short", "trekkinho"];
 
 export const C = {
   bg:       "#f5e8d2",
@@ -27,7 +79,338 @@ export const C = {
 export const scoreInk = (s: number): string =>
   s >= 7 ? C.green : s >= 4 ? C.amber : C.red;
 
-export function AppBar({ tight }: { tight?: boolean }) {
+function MobileSpotItem({
+  spot,
+  current,
+  qs,
+}: {
+  spot: Spot;
+  current: string;
+  qs: string;
+}) {
+  const isCurrent = spot.slug === current;
+  return (
+    <li>
+      <Link
+        href={`/${spot.slug}${qs}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "8px 10px",
+          borderRadius: 10,
+          background: isCurrent ? C.foam : "transparent",
+          color: C.ink,
+          textDecoration: "none",
+          fontSize: 13,
+          fontWeight: isCurrent ? 600 : 500,
+        }}
+      >
+        <span style={{ color: C.teal }}>◔</span>
+        <span>{spot.name}</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: C.inkSoft }}>
+          {spot.region.split(" · ")[1] ?? spot.region}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+function MobileRegionButton({
+  active,
+  onClick,
+  count,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        width: "100%",
+        padding: "6px 8px",
+        borderRadius: 8,
+        background: active ? C.foam : "transparent",
+        color: active ? C.deep : C.ink,
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: 11.5,
+        fontWeight: active ? 600 : 500,
+        textAlign: "left",
+        marginBottom: 2,
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {children}
+      </span>
+      <span
+        style={{
+          fontSize: 10,
+          color: active ? C.deep : C.inkSoft,
+          fontWeight: 600,
+        }}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function MobileSpotPicker({ spot, gear }: { spot: string; gear: GearKey }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [region, setRegion] = useState<Region>("all");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const current = SPOTS[spot] ?? SPOTS.itamambuca;
+  const totalCount = Object.keys(SPOTS).length;
+  const counts = countByState();
+  const qs = gear === "all" ? "" : `?gear=${gear}`;
+
+  const filtered = filterSpots(query).filter(
+    (s) => region === "all" || s.state === region,
+  );
+  const grouped = groupByState(filtered);
+  const isSearching = query.trim().length > 0;
+  const showGroups = region === "all" && !isSearching;
+
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onDocClick = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+        setRegion("all");
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  // State resets on route change because <MobileSpotPicker key={spot} /> in
+  // AppBar forces a remount when the spot prop changes (see Desktop.tsx for
+  // why we can't close inside the Link's onClick).
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      setQuery("");
+      setRegion("all");
+    } else {
+      setOpen(true);
+    }
+  };
+
+  return (
+    <div ref={rootRef} style={{ marginLeft: "auto", position: "relative" }}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        data-testid="mobile-spot-picker-toggle"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "5px 10px",
+          background: C.surface,
+          borderRadius: 999,
+          fontSize: 11.5,
+          color: C.ink,
+          fontWeight: 500,
+          boxShadow: `0 1px 0 ${C.rule}`,
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        ◉ {current.name} {open ? "▴" : "▾"}
+      </button>
+      {open && (
+        <div
+          data-testid="mobile-spot-picker-menu"
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 6px)",
+            width: 320,
+            maxWidth: "calc(100vw - 24px)",
+            background: C.surface,
+            borderRadius: 14,
+            boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
+            padding: 6,
+            maxHeight: 380,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            zIndex: 5,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: C.bg,
+              borderRadius: 999,
+              padding: "6px 12px",
+              marginBottom: 4,
+            }}
+          >
+            <span style={{ color: C.teal, fontSize: 13 }}>⌕</span>
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="buscar pico…"
+              data-testid="mobile-spot-picker-search"
+              style={{
+                flex: 1,
+                fontSize: 12.5,
+                color: C.ink,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                padding: "2px 0",
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  inputRef.current?.focus();
+                }}
+                aria-label="limpar"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: C.inkSoft,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <div
+            style={{
+              flex: 1,
+              display: "grid",
+              gridTemplateColumns: "96px 1fr",
+              gap: 4,
+              overflow: "hidden",
+              minHeight: 0,
+            }}
+          >
+            <aside
+              data-testid="mobile-spot-picker-regions"
+              style={{
+                overflow: "auto",
+                padding: "2px 4px 2px 0",
+                borderRight: `1px solid ${C.rule}`,
+              }}
+            >
+              <MobileRegionButton
+                active={region === "all"}
+                onClick={() => setRegion("all")}
+                count={totalCount}
+              >
+                Todos
+              </MobileRegionButton>
+              {STATE_ORDER.map((uf) => (
+                <MobileRegionButton
+                  key={uf}
+                  active={region === uf}
+                  onClick={() => setRegion(uf)}
+                  count={counts[uf]}
+                >
+                  {uf}
+                </MobileRegionButton>
+              ))}
+            </aside>
+            <div style={{ overflow: "auto", paddingLeft: 2 }}>
+              {filtered.length === 0 ? (
+                <div
+                  style={{
+                    padding: "14px 10px",
+                    fontSize: 12.5,
+                    color: C.inkSoft,
+                    textAlign: "center",
+                  }}
+                >
+                  Nenhum pico.
+                </div>
+              ) : showGroups ? (
+                grouped.map(([uf, spots]) => (
+                  <div key={uf}>
+                    <div
+                      style={{
+                        padding: "6px 10px 2px",
+                        fontSize: 9.5,
+                        color: C.inkSoft,
+                        fontWeight: 600,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {STATE_NAMES[uf]}
+                    </div>
+                    <ul role="listbox" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                      {spots.map((s) => (
+                        <MobileSpotItem
+                          key={s.slug}
+                          spot={s}
+                          current={spot}
+                          qs={qs}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              ) : (
+                <ul role="listbox" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {filtered.map((s) => (
+                    <MobileSpotItem
+                      key={s.slug}
+                      spot={s}
+                      current={spot}
+                      qs={qs}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function AppBar({
+  tight,
+  spot,
+  gear = "all",
+}: {
+  tight?: boolean;
+  spot: string;
+  gear?: GearKey;
+}) {
   return (
     <div
       style={{
@@ -67,23 +450,7 @@ export function AppBar({ tight }: { tight?: boolean }) {
       >
         partiu<span style={{ color: C.coral }}>.</span>surf
       </span>
-      <span
-        style={{
-          marginLeft: "auto",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "5px 10px",
-          background: C.surface,
-          borderRadius: 999,
-          fontSize: 11.5,
-          color: C.ink,
-          fontWeight: 500,
-          boxShadow: `0 1px 0 ${C.rule}`,
-        }}
-      >
-        ◉ Itamambuca
-      </span>
+      <MobileSpotPicker key={spot} spot={spot} gear={gear} />
     </div>
   );
 }
@@ -143,7 +510,17 @@ export function Wedge({ score = 8.9, size = 88 }: { score?: number; size?: numbe
   );
 }
 
-export function SummaryCard({ score = 8.9, compact = false }: { score?: number; compact?: boolean }) {
+export function SummaryCard({
+  data,
+  compact = false,
+}: {
+  data: Forecast;
+  compact?: boolean;
+}) {
+  const now = data.hours[0];
+  const swellSummary = now
+    ? `${now.swH.toFixed(1)}m·${now.swT}s ${dirLabel(now.swDir)}`
+    : "—";
   return (
     <div
       style={{
@@ -179,7 +556,7 @@ export function SummaryCard({ score = 8.9, compact = false }: { score?: number; 
               textTransform: "uppercase",
             }}
           >
-            ◔ beach · facing SSE
+            ◔ {data.spot.breakType} · facing {dirLabel(data.spot.facing)}
           </div>
           <div
             style={{
@@ -192,13 +569,13 @@ export function SummaryCard({ score = 8.9, compact = false }: { score?: number; 
               letterSpacing: "-0.02em",
             }}
           >
-            Itamambuca
+            {data.spot.name}
           </div>
           <div style={{ fontSize: 12, color: C.inkDim, marginTop: 6, lineHeight: 1.45 }}>
-            Pico <b style={{ color: C.deep }}>08h–10h</b> · 1.7m·13s S · terral leve
+            Pico <b style={{ color: C.deep }}>{data.spot.bestWindow}</b> · {swellSummary}
           </div>
         </div>
-        <Wedge score={score} size={compact ? 72 : 88} />
+        <Wedge score={data.spot.todayPeak} size={compact ? 72 : 88} />
       </div>
     </div>
   );
@@ -312,13 +689,48 @@ export function Chip({ active, children }: { active?: boolean; children: React.R
   );
 }
 
-export function FilterChips() {
+function GearChipLink({
+  gear,
+  current,
+  spot,
+  children,
+}: {
+  gear: GearKey;
+  current: GearKey;
+  spot: string;
+  children: React.ReactNode;
+}) {
+  const active = gear === current;
+  const href = gear === "all" ? `/${spot}` : `/${spot}?gear=${gear}`;
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      style={{
+        fontSize: 12,
+        padding: "7px 12px",
+        borderRadius: 999,
+        background: active ? C.deep : C.surface,
+        color: active ? "#fff" : C.ink,
+        boxShadow: active ? `0 2px 8px rgba(10,58,68,0.18)` : `0 1px 0 ${C.rule}`,
+        whiteSpace: "nowrap",
+        fontWeight: 500,
+        textDecoration: "none",
+      }}
+    >
+      {children}
+    </Link>
+  );
+}
+
+export function FilterChips({ spot, gear = "all" }: { spot: string; gear?: GearKey }) {
   return (
     <div style={{ display: "flex", gap: 6, padding: "0 16px", overflowX: "auto" }}>
-      <Chip active>Auto</Chip>
-      <Chip>Iniciante</Chip>
-      <Chip>Short 6&apos;2&quot;</Chip>
-      <Chip>Hoje</Chip>
+      {GEAR_ORDER.map((g) => (
+        <GearChipLink key={g} gear={g} current={gear} spot={spot}>
+          {GEAR_LABELS[g]}
+        </GearChipLink>
+      ))}
     </div>
   );
 }
