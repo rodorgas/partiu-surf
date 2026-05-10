@@ -4,7 +4,7 @@
 // is wiped first so deletions in the source propagate.
 
 import { cpSync, existsSync, rmSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
