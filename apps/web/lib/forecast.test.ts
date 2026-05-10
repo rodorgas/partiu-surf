@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RawForecast } from "./forecast";
+import { buildSpotUrl, normalizeDate, FORECAST_DAY_COUNT } from "./forecast";
 
 const { memory } = await vi.hoisted(async () => {
   const { MemoryRedis } = await import("./__mocks__/upstash-redis-memory");
@@ -70,6 +71,46 @@ describe("adaptRawToForecast", () => {
     expect(out.suggestions.length).toBeGreaterThan(0);
     expect(out.spot.todayPeak).toBe(8.9);
     expect(out.spot.region).toBe("Ubatuba · SP");
+  });
+});
+
+describe("normalizeDate", () => {
+  const today = "2026-05-10";
+  it("accepts today and dates within the forecast window", () => {
+    expect(normalizeDate("2026-05-10", today)).toBe("2026-05-10");
+    expect(normalizeDate("2026-05-16", today)).toBe("2026-05-16"); // today + 6
+  });
+  it("falls back to today for malformed input", () => {
+    expect(normalizeDate(undefined, today)).toBe(today);
+    expect(normalizeDate("not-a-date", today)).toBe(today);
+    expect(normalizeDate("2026-13-01", today)).toBe(today);
+  });
+  it("falls back to today for past or far-future dates", () => {
+    expect(normalizeDate("2026-05-09", today)).toBe(today);
+    expect(normalizeDate("2026-05-17", today)).toBe(today); // today + 7
+  });
+  it("FORECAST_DAY_COUNT is the inclusive day count", () => {
+    expect(FORECAST_DAY_COUNT).toBe(7);
+  });
+});
+
+describe("buildSpotUrl", () => {
+  const today = "2026-05-10";
+  it("omits defaults", () => {
+    expect(buildSpotUrl("arpoador", { today })).toBe("/arpoador");
+    expect(buildSpotUrl("arpoador", { gear: "all", today })).toBe("/arpoador");
+    expect(buildSpotUrl("arpoador", { date: today, today })).toBe("/arpoador");
+  });
+  it("emits only non-default params", () => {
+    expect(buildSpotUrl("arpoador", { gear: "bb", today })).toBe(
+      "/arpoador?gear=bb",
+    );
+    expect(buildSpotUrl("arpoador", { date: "2026-05-12", today })).toBe(
+      "/arpoador?date=2026-05-12",
+    );
+    expect(
+      buildSpotUrl("arpoador", { gear: "bb", date: "2026-05-12", today }),
+    ).toBe("/arpoador?gear=bb&date=2026-05-12");
   });
 });
 

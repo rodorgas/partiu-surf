@@ -73,6 +73,40 @@ describe("<SpotPage />", () => {
     );
   });
 
+  it("threads ?date= through to getForecast when within window", async () => {
+    getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
+    const { todayISO, addDaysISO } = await import("@/lib/date");
+    const future = addDaysISO(todayISO(), 3);
+    const mod = await import("./page");
+    const SpotPage = mod.default;
+    await SpotPage({
+      params: Promise.resolve({ spot: "itamambuca" }),
+      searchParams: Promise.resolve({ date: future }),
+    });
+    expect(getForecastMock).toHaveBeenCalledWith(
+      "itamambuca",
+      future,
+      "all",
+    );
+  });
+
+  it("falls back to today when ?date= is malformed or out of range", async () => {
+    getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
+    const { todayISO } = await import("@/lib/date");
+    const today = todayISO();
+    const mod = await import("./page");
+    const SpotPage = mod.default;
+    await SpotPage({
+      params: Promise.resolve({ spot: "itamambuca" }),
+      searchParams: Promise.resolve({ date: "2099-99-99" }),
+    });
+    expect(getForecastMock).toHaveBeenCalledWith(
+      "itamambuca",
+      today,
+      "all",
+    );
+  });
+
   it("calls notFound() for an unknown slug", async () => {
     const mod = await import("./page");
     const SpotPage = mod.default;

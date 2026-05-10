@@ -6,7 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Forecast, ForecastHour } from "@/lib/data";
 import { dirLabel } from "@/lib/data";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
-import type { GearKey } from "@/lib/forecast";
+import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
+import { dateKicker, formatDateLong, forecastDates } from "@/lib/date";
 
 function normalizeText(s: string): string {
   return s
@@ -82,17 +83,17 @@ export const scoreInk = (s: number): string =>
 function MobileSpotItem({
   spot,
   current,
-  qs,
+  href,
 }: {
   spot: Spot;
   current: string;
-  qs: string;
+  href: string;
 }) {
   const isCurrent = spot.slug === current;
   return (
     <li>
       <Link
-        href={`/${spot.slug}${qs}`}
+        href={href}
         style={{
           display: "flex",
           alignItems: "center",
@@ -165,7 +166,17 @@ function MobileRegionButton({
   );
 }
 
-function MobileSpotPicker({ spot, gear }: { spot: string; gear: GearKey }) {
+function MobileSpotPicker({
+  spot,
+  gear,
+  date,
+  today,
+}: {
+  spot: string;
+  gear: GearKey;
+  date: string;
+  today: string;
+}) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [region, setRegion] = useState<Region>("all");
@@ -174,7 +185,6 @@ function MobileSpotPicker({ spot, gear }: { spot: string; gear: GearKey }) {
   const current = SPOTS[spot] ?? SPOTS.itamambuca;
   const totalCount = Object.keys(SPOTS).length;
   const counts = countByState();
-  const qs = gear === "all" ? "" : `?gear=${gear}`;
 
   const filtered = filterSpots(query).filter(
     (s) => region === "all" || s.state === region,
@@ -376,7 +386,7 @@ function MobileSpotPicker({ spot, gear }: { spot: string; gear: GearKey }) {
                           key={s.slug}
                           spot={s}
                           current={spot}
-                          qs={qs}
+                          href={buildSpotUrl(s.slug, { gear, date, today })}
                         />
                       ))}
                     </ul>
@@ -389,7 +399,7 @@ function MobileSpotPicker({ spot, gear }: { spot: string; gear: GearKey }) {
                       key={s.slug}
                       spot={s}
                       current={spot}
-                      qs={qs}
+                      href={buildSpotUrl(s.slug, { gear, date, today })}
                     />
                   ))}
                 </ul>
@@ -406,10 +416,14 @@ export function AppBar({
   tight,
   spot,
   gear = "all",
+  date,
+  today,
 }: {
   tight?: boolean;
   spot: string;
   gear?: GearKey;
+  date: string;
+  today: string;
 }) {
   return (
     <div
@@ -450,7 +464,13 @@ export function AppBar({
       >
         partiu<span style={{ color: C.coral }}>.</span>surf
       </span>
-      <MobileSpotPicker key={spot} spot={spot} gear={gear} />
+      <MobileSpotPicker
+        key={spot}
+        spot={spot}
+        gear={gear}
+        date={date}
+        today={today}
+      />
     </div>
   );
 }
@@ -693,15 +713,19 @@ function GearChipLink({
   gear,
   current,
   spot,
+  date,
+  today,
   children,
 }: {
   gear: GearKey;
   current: GearKey;
   spot: string;
+  date: string;
+  today: string;
   children: React.ReactNode;
 }) {
   const active = gear === current;
-  const href = gear === "all" ? `/${spot}` : `/${spot}?gear=${gear}`;
+  const href = buildSpotUrl(spot, { gear, date, today });
   return (
     <Link
       href={href}
@@ -723,11 +747,141 @@ function GearChipLink({
   );
 }
 
-export function FilterChips({ spot, gear = "all" }: { spot: string; gear?: GearKey }) {
+function MobileDatePicker({
+  spot,
+  gear,
+  date,
+  today,
+}: {
+  spot: string;
+  gear: GearKey;
+  date: string;
+  today: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const days = forecastDates(today, FORECAST_DAY_COUNT);
+  const kicker = dateKicker(date, today);
+  const buttonLabel = kicker ?? formatDateLong(date);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        data-testid="mobile-date-picker-toggle"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "7px 12px",
+          background: open ? C.foam : C.surface,
+          color: C.ink,
+          borderRadius: 999,
+          fontSize: 12,
+          fontWeight: 500,
+          boxShadow: open ? `0 2px 8px rgba(10,58,68,0.18)` : `0 1px 0 ${C.rule}`,
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span style={{ color: C.coral }}>☼</span>
+        {buttonLabel}
+        <span style={{ fontSize: 10, color: C.inkSoft }}>
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          data-testid="mobile-date-picker-menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            minWidth: 200,
+            background: C.surface,
+            borderRadius: 12,
+            boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
+            padding: 4,
+            listStyle: "none",
+            margin: 0,
+            zIndex: 5,
+          }}
+        >
+          {days.map((iso) => {
+            const isCurrent = iso === date;
+            const itemKicker = dateKicker(iso, today);
+            return (
+              <li key={iso}>
+                <Link
+                  href={buildSpotUrl(spot, { gear, date: iso, today })}
+                  scroll={false}
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 6,
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    background: isCurrent ? C.foam : "transparent",
+                    color: C.ink,
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: isCurrent ? 600 : 500,
+                  }}
+                >
+                  {itemKicker && (
+                    <span style={{ color: C.deep, fontWeight: 600 }}>
+                      {itemKicker}
+                    </span>
+                  )}
+                  <span style={{ color: C.inkDim }}>{formatDateLong(iso)}</span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+export function FilterChips({
+  spot,
+  gear = "all",
+  date,
+  today,
+}: {
+  spot: string;
+  gear?: GearKey;
+  date: string;
+  today: string;
+}) {
   return (
     <div style={{ display: "flex", gap: 6, padding: "0 16px", overflowX: "auto" }}>
+      <MobileDatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
       {GEAR_ORDER.map((g) => (
-        <GearChipLink key={g} gear={g} current={gear} spot={spot}>
+        <GearChipLink
+          key={g}
+          gear={g}
+          current={gear}
+          spot={spot}
+          date={date}
+          today={today}
+        >
           {GEAR_LABELS[g]}
         </GearChipLink>
       ))}

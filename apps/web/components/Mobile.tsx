@@ -15,7 +15,8 @@ import {
   SuggestionPill,
 } from "@/components/mobile/Shared";
 import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
-import type { GearKey } from "@/lib/forecast";
+import type { GearKey } from "@/lib/forecast-shared";
+import { todayISO } from "@/lib/date";
 
 export const SNAPS = { peek: 18, half: 52, full: 92 } as const;
 export type SheetState = keyof typeof SNAPS;
@@ -34,11 +35,23 @@ export function nearestSnap(pct: number): SheetState {
   return best;
 }
 
-function Body({ data, spot, gear }: { data: Forecast; spot: string; gear: GearKey }) {
+function Body({
+  data,
+  spot,
+  gear,
+  date,
+  today,
+}: {
+  data: Forecast;
+  spot: string;
+  gear: GearKey;
+  date: string;
+  today: string;
+}) {
   return (
     <>
-      <AppBar spot={spot} gear={gear} />
-      <FilterChips spot={spot} gear={gear} />
+      <AppBar spot={spot} gear={gear} date={date} today={today} />
+      <FilterChips spot={spot} gear={gear} date={date} today={today} />
       <div style={{ height: 12 }} />
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />
@@ -684,11 +697,17 @@ export function Mobile({
   data,
   spot,
   gear = "all",
+  date,
+  today,
 }: {
   data: Forecast;
   spot: string;
   gear?: GearKey;
+  date?: string;
+  today?: string;
 }) {
+  const t = today ?? todayISO();
+  const d = date ?? t;
   const [state, setState] = useState<SheetState>("peek");
   const { history, streaming, status, error, send, dismissError } = useChat(spot);
   const dim = state === "full";
@@ -734,7 +753,7 @@ export function Mobile({
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <Body data={data} spot={spot} gear={gear} />
+        <Body data={data} spot={spot} gear={gear} date={d} today={t} />
       </div>
       {dim && (
         <div
