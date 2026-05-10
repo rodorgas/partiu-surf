@@ -22,7 +22,10 @@ const SYSTEM_PROMPT = `Você é o copiloto do partiu.surf — um assistente de s
 Você analisa swell, vento, maré e temperatura, cruza com o nível e equipamento do usuário,
 e responde de forma direta. Seja honesto sobre quando NÃO vale a pena ir surfar.
 Use unidades métricas (metros, segundos, km/h, °C). Direções em português (S, SSE, etc).
-Mantenha respostas curtas — 2-3 frases — a menos que o usuário peça mais detalhe.`;
+Mantenha respostas curtas — 2-3 frases — a menos que o usuário peça mais detalhe.
+Sempre considere a hora atual informada a cada turno. Não sugira janelas que já passaram —
+se a melhor janela do dia já foi, diga isso direto e ofereça a próxima opção (mais tarde
+no dia, manhã seguinte, etc).`;
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -37,6 +40,17 @@ type ChatRequest = {
 
 function todayISO(): string {
   return new Date().toLocaleDateString("sv-SE", { timeZone: TZ });
+}
+
+function nowLocal(): string {
+  return new Date().toLocaleString("pt-BR", {
+    timeZone: TZ,
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function isValidHistory(value: unknown): value is ChatMessage[] {
@@ -123,11 +137,14 @@ export async function POST(req: Request) {
   // 5. Build the cached prefix. SYSTEM_PROMPT and the forecast JSON are both
   //    marked ephemeral so we get the per-spot-per-day cache reuse the plan
   //    calls for. DO NOT interpolate timestamps into either block.
+  //    Current time goes in a third, UNCACHED block — outside the cached prefix
+  //    so it doesn't invalidate anything, and fresh on every request.
   const forecastBlock = `Forecast for ${forecast.spot.name} on ${today}:\n${JSON.stringify(
     forecast,
     null,
     2,
   )}`;
+  const nowBlock = `Hora atual: ${nowLocal()} (${TZ}).`;
 
   const messages = [
     ...body.history.map((m) => ({ role: m.role, content: m.content })),
@@ -166,6 +183,7 @@ export async function POST(req: Request) {
           text: forecastBlock,
           cache_control: { type: "ephemeral" },
         },
+        { type: "text", text: nowBlock },
       ],
       messages,
     });
