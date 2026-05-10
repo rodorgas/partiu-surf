@@ -216,13 +216,16 @@ describe("POST /api/chat", () => {
     const call = streamCalls[0];
     expect(call.model).toBe("claude-haiku-4-5-20251001");
     const sys = call.system as Array<{ type: string; cache_control?: unknown; text: string }>;
-    expect(sys).toHaveLength(2);
+    expect(sys).toHaveLength(3);
     expect(sys[0].cache_control).toEqual({ type: "ephemeral" });
     expect(sys[1].cache_control).toEqual({ type: "ephemeral" });
     expect(sys[0].text).toMatch(/copiloto do partiu\.surf/);
     expect(sys[1].text).toMatch(/Forecast for Itamambuca/);
     // The forecast block embeds the JSON dump so the model can read it.
     expect(sys[1].text).toMatch(/"spot"/);
+    // Third block carries the current time — uncached, so cache_control absent.
+    expect(sys[2].cache_control).toBeUndefined();
+    expect(sys[2].text).toMatch(/^Hora atual: .+\d{2}:\d{2}.+America\/Sao_Paulo/);
   });
 
   it("429 once the rate-limit window is exhausted", async () => {
