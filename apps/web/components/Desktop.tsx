@@ -2,10 +2,70 @@
 // Desktop UI — "Coastal Warm" direction (final pick from the design handoff).
 // Sand + ocean, soft curves, friendly. Space Grotesk + Bricolage Grotesque.
 
-import { useRef, useState } from "react";
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import type { Forecast } from "@/lib/data";
 import { dirLabel } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
+import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
+import type { GearKey } from "@/lib/forecast";
+
+function normalizeText(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase();
+}
+
+function filterSpots(query: string): Spot[] {
+  const q = normalizeText(query.trim());
+  if (!q) return Object.values(SPOTS);
+  return Object.values(SPOTS).filter(
+    (s) =>
+      normalizeText(s.name).includes(q) ||
+      normalizeText(s.region).includes(q) ||
+      s.state.toLowerCase().includes(q),
+  );
+}
+
+function groupByState(spots: Spot[]): Array<[StateUF, Spot[]]> {
+  const buckets = new Map<StateUF, Spot[]>();
+  for (const s of spots) {
+    const bucket = buckets.get(s.state);
+    if (bucket) bucket.push(s);
+    else buckets.set(s.state, [s]);
+  }
+  return STATE_ORDER
+    .filter((uf) => buckets.has(uf))
+    .map((uf) => [uf, buckets.get(uf)!] as [StateUF, Spot[]]);
+}
+
+function countByState(): Record<StateUF, number> {
+  const counts = {} as Record<StateUF, number>;
+  for (const uf of STATE_ORDER) counts[uf] = 0;
+  for (const s of Object.values(SPOTS)) counts[s.state] += 1;
+  return counts;
+}
+
+const GEAR_LABELS: Record<GearKey, string> = {
+  all: "Auto",
+  bb: "Bodyboard",
+  short: "Shortboard",
+  trekkinho: "Trekkinho",
+};
+const GEAR_ORDER: GearKey[] = ["all", "bb", "short", "trekkinho"];
+
+const DATE_FMT = new Intl.DateTimeFormat("pt-BR", {
+  weekday: "short",
+  day: "2-digit",
+  month: "short",
+  timeZone: "America/Sao_Paulo",
+});
+
+function todayLabel(): string {
+  // "sex., 14 nov." → strip trailing dots/commas for the chip.
+  return DATE_FMT.format(new Date()).replace(/\.$/, "").replace(/,/g, "");
+}
 
 const C = {
   bg:       "#f5e8d2",
@@ -397,9 +457,23 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
   );
 }
 
-function Chip({ active, children }: { active?: boolean; children: React.ReactNode }) {
+function GearChip({
+  gear,
+  current,
+  spot,
+  children,
+}: {
+  gear: GearKey;
+  current: GearKey;
+  spot: string;
+  children: React.ReactNode;
+}) {
+  const active = gear === current;
+  const href = gear === "all" ? `/${spot}` : `/${spot}?gear=${gear}`;
   return (
-    <span
+    <Link
+      href={href}
+      scroll={false}
       style={{
         fontSize: 13,
         padding: "10px 14px",
@@ -409,14 +483,361 @@ function Chip({ active, children }: { active?: boolean; children: React.ReactNod
         boxShadow: active ? `0 4px 12px rgba(10,58,68,0.18)` : `0 1px 0 ${C.rule}`,
         whiteSpace: "nowrap",
         fontWeight: 500,
+        textDecoration: "none",
       }}
     >
       {children}
-    </span>
+    </Link>
   );
 }
 
-function TopBar() {
+function SpotPickerItem({
+  spot,
+  current,
+  qs,
+}: {
+  spot: Spot;
+  current: string;
+  qs: string;
+}) {
+  const isCurrent = spot.slug === current;
+  return (
+    <li>
+      <Link
+        href={`/${spot.slug}${qs}`}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "10px 12px",
+          borderRadius: 12,
+          background: isCurrent ? C.foam : "transparent",
+          color: C.ink,
+          textDecoration: "none",
+          fontSize: 14,
+          fontWeight: isCurrent ? 600 : 500,
+        }}
+      >
+        <span style={{ color: C.teal }}>◔</span>
+        <span>{spot.name}</span>
+        <span style={{ marginLeft: "auto", fontSize: 12, color: C.inkSoft }}>
+          {spot.region}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+type Region = StateUF | "all";
+
+function RegionButton({
+  active,
+  onClick,
+  count,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  count: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-active={active}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        width: "100%",
+        padding: "8px 10px",
+        borderRadius: 10,
+        background: active ? C.foam : "transparent",
+        color: active ? C.deep : C.ink,
+        border: "none",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        fontSize: 13,
+        fontWeight: active ? 600 : 500,
+        textAlign: "left",
+        marginBottom: 2,
+      }}
+    >
+      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {children}
+      </span>
+      <span
+        style={{
+          fontSize: 11,
+          color: active ? C.deep : C.inkSoft,
+          fontWeight: 600,
+          background: active ? "transparent" : C.bg,
+          padding: "1px 6px",
+          borderRadius: 999,
+        }}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function SpotPicker({ spot, gear }: { spot: string; gear: GearKey }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [region, setRegion] = useState<Region>("all");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const current = SPOTS[spot] ?? SPOTS.itamambuca;
+  const totalCount = Object.keys(SPOTS).length;
+  const counts = countByState();
+  const qs = gear === "all" ? "" : `?gear=${gear}`;
+
+  const filtered = filterSpots(query).filter(
+    (s) => region === "all" || s.state === region,
+  );
+  const grouped = groupByState(filtered);
+  const isSearching = query.trim().length > 0;
+  const showGroups = region === "all" && !isSearching;
+
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onDocClick = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery("");
+        setRegion("all");
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        setQuery("");
+        setRegion("all");
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // Picker resets to its initial closed state when the route's spot changes —
+  // the parent (TopBar) renders <SpotPicker key={spot} /> to force a remount.
+  // Closing inside the Link's onClick races with Next.js navigation, so we
+  // can't rely on that path to reset state.
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+      setQuery("");
+      setRegion("all");
+    } else {
+      setOpen(true);
+    }
+  };
+
+  return (
+    <div ref={rootRef} style={{ flex: "1 1 280px", position: "relative", minWidth: 0 }}>
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        data-testid="spot-picker-toggle"
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          background: C.surface,
+          borderRadius: 999,
+          padding: "10px 16px",
+          boxShadow: `0 1px 0 ${C.rule}`,
+          minWidth: 0,
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          textAlign: "left",
+        }}
+      >
+        <span style={{ color: C.teal }}>⌕</span>
+        <span style={{ fontSize: 14, color: C.ink, fontWeight: 600 }}>{current.name}</span>
+        <span style={{ fontSize: 13, color: C.inkDim }}>· {current.region}</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: C.inkSoft, fontWeight: 500 }}>
+          {totalCount} picos · BR {open ? "▴" : "▾"}
+        </span>
+      </button>
+      {open && (
+        <div
+          data-testid="spot-picker-menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            left: 0,
+            width: 560,
+            maxWidth: "calc(100vw - 60px)",
+            background: C.surface,
+            borderRadius: 18,
+            boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
+            padding: 8,
+            maxHeight: 440,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            zIndex: 5,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: C.bg,
+              borderRadius: 999,
+              padding: "8px 14px",
+              marginBottom: 6,
+            }}
+          >
+            <span style={{ color: C.teal, fontSize: 14 }}>⌕</span>
+            <input
+              ref={inputRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="buscar pico ou cidade…"
+              data-testid="spot-picker-search"
+              style={{
+                flex: 1,
+                fontSize: 13.5,
+                color: C.ink,
+                background: "transparent",
+                border: "none",
+                outline: "none",
+                padding: "2px 0",
+              }}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuery("");
+                  inputRef.current?.focus();
+                }}
+                aria-label="limpar"
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: C.inkSoft,
+                  cursor: "pointer",
+                  fontSize: 14,
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <div
+            style={{
+              flex: 1,
+              display: "grid",
+              gridTemplateColumns: "150px 1fr",
+              gap: 6,
+              overflow: "hidden",
+              minHeight: 0,
+            }}
+          >
+            <aside
+              data-testid="spot-picker-regions"
+              style={{
+                overflow: "auto",
+                padding: "2px 4px 2px 0",
+                borderRight: `1px solid ${C.rule}`,
+              }}
+            >
+              <RegionButton
+                active={region === "all"}
+                onClick={() => setRegion("all")}
+                count={totalCount}
+              >
+                Todos
+              </RegionButton>
+              {STATE_ORDER.map((uf) => (
+                <RegionButton
+                  key={uf}
+                  active={region === uf}
+                  onClick={() => setRegion(uf)}
+                  count={counts[uf]}
+                >
+                  {STATE_NAMES[uf]}
+                </RegionButton>
+              ))}
+            </aside>
+            <div style={{ overflow: "auto", paddingLeft: 4 }}>
+              {filtered.length === 0 ? (
+                <div
+                  style={{
+                    padding: "16px 12px",
+                    fontSize: 13,
+                    color: C.inkSoft,
+                    textAlign: "center",
+                  }}
+                >
+                  Nenhum pico encontrado.
+                </div>
+              ) : showGroups ? (
+                grouped.map(([uf, spots]) => (
+                  <div key={uf}>
+                    <div
+                      style={{
+                        padding: "8px 12px 4px",
+                        fontSize: 10.5,
+                        color: C.inkSoft,
+                        fontWeight: 600,
+                        letterSpacing: "0.08em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {STATE_NAMES[uf]} · {uf}
+                    </div>
+                    <ul role="listbox" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                      {spots.map((s) => (
+                        <SpotPickerItem
+                          key={s.slug}
+                          spot={s}
+                          current={spot}
+                          qs={qs}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              ) : (
+                <ul role="listbox" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                  {filtered.map((s) => (
+                    <SpotPickerItem
+                      key={s.slug}
+                      spot={s}
+                      current={spot}
+                      qs={qs}
+                    />
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TopBar({ spot, gear }: { spot: string; gear: GearKey }) {
   return (
     <div
       style={{
@@ -428,26 +849,7 @@ function TopBar() {
         background: "transparent",
       }}
     >
-      <div
-        style={{
-          flex: "1 1 280px",
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          background: C.surface,
-          borderRadius: 999,
-          padding: "10px 16px",
-          boxShadow: `0 1px 0 ${C.rule}`,
-          minWidth: 0,
-        }}
-      >
-        <span style={{ color: C.teal }}>⌕</span>
-        <span style={{ fontSize: 14, color: C.ink, fontWeight: 600 }}>Itamambuca</span>
-        <span style={{ fontSize: 13, color: C.inkDim }}>· Ubatuba/SP</span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: C.inkSoft, fontWeight: 500 }}>
-          4 picos perto
-        </span>
-      </div>
+      <SpotPicker key={spot} spot={spot} gear={gear} />
       <div
         style={{
           display: "flex",
@@ -461,11 +863,13 @@ function TopBar() {
       >
         <span style={{ color: C.coral }}>☼</span>
         <span style={{ fontSize: 14, color: C.ink, fontWeight: 600 }}>Hoje</span>
-        <span style={{ fontSize: 13, color: C.inkDim }}>sex 14 nov</span>
+        <span style={{ fontSize: 13, color: C.inkDim }}>{todayLabel()}</span>
       </div>
-      <Chip active>Auto</Chip>
-      <Chip>Intermediário</Chip>
-      <Chip>Shortboard 6&apos;2&quot;</Chip>
+      {GEAR_ORDER.map((g) => (
+        <GearChip key={g} gear={g} current={gear} spot={spot}>
+          {GEAR_LABELS[g]}
+        </GearChip>
+      ))}
     </div>
   );
 }
@@ -597,6 +1001,20 @@ function ScoreWedge({ score }: { score: number }) {
 }
 
 function Hero({ data }: { data: Forecast }) {
+  const now = data.hours[0];
+  const facingLabel = dirLabel(data.spot.facing);
+  const tideState = now?.tide ?? "subindo";
+  const swellSummary = now
+    ? `${now.swH.toFixed(1)}m · ${now.swT}s · ${dirLabel(now.swDir)}`
+    : "—";
+  const windSummary = now
+    ? `${now.wKmh} km/h ${dirLabel(now.wDir)}`
+    : "—";
+  const tideSummary = now ? `${now.tideH.toFixed(1)}m ${now.tide}` : "—";
+  const waterSummary = data.spot.waterTemp
+    ? `${data.spot.waterTemp.toFixed(1)}°C`
+    : "—";
+
   return (
     <div style={{ padding: "4px 28px 0" }}>
       <div
@@ -633,7 +1051,7 @@ function Hero({ data }: { data: Forecast }) {
                 marginBottom: 6,
               }}
             >
-              ◔ beach · facing SSE · maré subindo
+              ◔ {data.spot.breakType} · facing {facingLabel} · maré {tideState}
             </div>
             <h1
               style={{
@@ -646,19 +1064,18 @@ function Hero({ data }: { data: Forecast }) {
                 letterSpacing: "-0.02em",
               }}
             >
-              Itamambuca
+              {data.spot.name}
             </h1>
             <p style={{ margin: "12px 0 0", fontSize: 16, lineHeight: 1.5, color: C.inkDim, maxWidth: 520 }}>
-              Janela boa de manhã — pico em{" "}
-              <b style={{ color: C.deep }}>{data.spot.bestWindow}</b> com swell sul de{" "}
-              <b style={{ color: C.deep }}>1.7m · 13s</b> e terral leve. Vira ruim depois do almoço quando o
-              vento entra do oeste.
+              Janela boa — pico em{" "}
+              <b style={{ color: C.deep }}>{data.spot.bestWindow}</b> com swell de{" "}
+              <b style={{ color: C.deep }}>{swellSummary}</b>. Acompanhe vento e maré hora a hora abaixo.
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
-              <Pill icon="≋" label="Swell" v="1.7m · 13s · S" />
-              <Pill icon="✱" label="Vento" v="5 km/h SO" tone="green" sub="terral" />
-              <Pill icon="◐" label="Maré" v="2.0m alta" />
-              <Pill icon="◌" label="Água" v="24°C" />
+              <Pill icon="≋" label="Swell" v={swellSummary} />
+              <Pill icon="✱" label="Vento" v={windSummary} />
+              <Pill icon="◐" label="Maré" v={tideSummary} />
+              <Pill icon="◌" label="Água" v={waterSummary} />
             </div>
           </div>
 
@@ -848,8 +1265,8 @@ function SwellRose({ data }: { data: Forecast }) {
   const cx = 85,
     cy = 85,
     r = 68;
-  const facing = data.spot.facing,
-    swDeg = 185;
+  const facing = data.spot.facing;
+  const swDeg = data.hours[0]?.swDir ?? facing;
   const a1 = ((facing - 45 - 90) * Math.PI) / 180;
   const a2 = ((facing + 45 - 90) * Math.PI) / 180;
   const x1 = cx + r * Math.cos(a1),
@@ -912,7 +1329,9 @@ function SwellRose({ data }: { data: Forecast }) {
         >
           swell
         </div>
-        <div style={{ color: C.deep, fontWeight: 700, fontSize: 18 }}>185° S</div>
+        <div style={{ color: C.deep, fontWeight: 700, fontSize: 18 }}>
+          {Math.round(swDeg)}° {dirLabel(swDeg)}
+        </div>
         <div
           style={{
             color: C.inkDim,
@@ -925,21 +1344,32 @@ function SwellRose({ data }: { data: Forecast }) {
         >
           orientação do pico
         </div>
-        <div style={{ color: C.coral, fontWeight: 700, fontSize: 14 }}>165° SSE</div>
-        <div
-          style={{
-            marginTop: 10,
-            padding: "5px 10px",
-            background: `${C.green}22`,
-            color: C.green,
-            borderRadius: 999,
-            fontSize: 11.5,
-            fontWeight: 600,
-            display: "inline-block",
-          }}
-        >
-          offset 20° · alinhado
+        <div style={{ color: C.coral, fontWeight: 700, fontSize: 14 }}>
+          {Math.round(facing)}° {dirLabel(facing)}
         </div>
+        {(() => {
+          const offset = Math.min(
+            Math.abs(((swDeg - facing + 540) % 360) - 180),
+            180,
+          );
+          const aligned = offset <= 30;
+          return (
+            <div
+              style={{
+                marginTop: 10,
+                padding: "5px 10px",
+                background: aligned ? `${C.green}22` : `${C.amber}22`,
+                color: aligned ? C.green : C.amber,
+                borderRadius: 999,
+                fontSize: 11.5,
+                fontWeight: 600,
+                display: "inline-block",
+              }}
+            >
+              offset {Math.round(offset)}° · {aligned ? "alinhado" : "desalinhado"}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -1149,7 +1579,15 @@ function SideCards({ data }: { data: Forecast }) {
   );
 }
 
-export function Desktop({ data, spot }: { data: Forecast; spot: string }) {
+export function Desktop({
+  data,
+  spot,
+  gear = "all",
+}: {
+  data: Forecast;
+  spot: string;
+  gear?: GearKey;
+}) {
   return (
     <div
       style={{
@@ -1163,7 +1601,7 @@ export function Desktop({ data, spot }: { data: Forecast; spot: string }) {
     >
       <ChatPanel data={data} spot={spot} />
       <main style={{ flex: "1 1 auto", overflow: "auto" }}>
-        <TopBar />
+        <TopBar spot={spot} gear={gear} />
         <Hero data={data} />
         <HourTable data={data} />
         <SideCards data={data} />

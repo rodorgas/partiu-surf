@@ -15,6 +15,7 @@ import {
   SuggestionPill,
 } from "@/components/mobile/Shared";
 import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
+import type { GearKey } from "@/lib/forecast";
 
 export const SNAPS = { peek: 18, half: 52, full: 92 } as const;
 export type SheetState = keyof typeof SNAPS;
@@ -33,13 +34,13 @@ export function nearestSnap(pct: number): SheetState {
   return best;
 }
 
-function Body({ data }: { data: Forecast }) {
+function Body({ data, spot, gear }: { data: Forecast; spot: string; gear: GearKey }) {
   return (
     <>
-      <AppBar />
-      <FilterChips />
+      <AppBar spot={spot} gear={gear} />
+      <FilterChips spot={spot} gear={gear} />
       <div style={{ height: 12 }} />
-      <SummaryCard />
+      <SummaryCard data={data} />
       <div style={{ height: 12 }} />
       <HourList rows={data.hours} max={8} />
       <div style={{ height: 240 }} />
@@ -679,7 +680,15 @@ function ComposerDark({
   );
 }
 
-export function Mobile({ data, spot }: { data: Forecast; spot: string }) {
+export function Mobile({
+  data,
+  spot,
+  gear = "all",
+}: {
+  data: Forecast;
+  spot: string;
+  gear?: GearKey;
+}) {
   const [state, setState] = useState<SheetState>("peek");
   const { history, streaming, status, error, send, dismissError } = useChat(spot);
   const dim = state === "full";
@@ -725,7 +734,7 @@ export function Mobile({ data, spot }: { data: Forecast; spot: string }) {
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <Body data={data} />
+        <Body data={data} spot={spot} gear={gear} />
       </div>
       {dim && (
         <div

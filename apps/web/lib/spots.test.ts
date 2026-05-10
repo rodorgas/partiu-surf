@@ -21,11 +21,13 @@ describe("spots config", () => {
   });
 
   it("coordinates fall in plausible Brazilian latitude/longitude ranges", () => {
+    // Brazil coast roughly spans lat -34..-2, lon -55..-28
+    // (Fernando de Noronha at -32.4 lon is the eastmost surf zone).
     for (const spot of Object.values(SPOTS)) {
-      expect(spot.lat).toBeGreaterThan(-25);
-      expect(spot.lat).toBeLessThan(-22);
-      expect(spot.lon).toBeGreaterThan(-46);
-      expect(spot.lon).toBeLessThan(-43);
+      expect(spot.lat).toBeGreaterThan(-34);
+      expect(spot.lat).toBeLessThan(0);
+      expect(spot.lon).toBeGreaterThan(-55);
+      expect(spot.lon).toBeLessThan(-28);
     }
   });
 });
