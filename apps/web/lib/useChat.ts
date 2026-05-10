@@ -8,9 +8,8 @@
 //   error       → 429 (amber) or network error (red w/ "tente de novo" CTA).
 //
 // On submit we optimistically push the user turn into `history` then start
-// reading the SSE stream. The Anthropic SDK's toReadableStream emits standard
-// SSE frames: `event: <type>\ndata: <json>\n\n`. We only act on
-// content_block_delta + message_stop.
+// reading the stream. The Anthropic SDK's toReadableStream emits one JSON
+// object per line (NDJSON — not SSE). We only act on content_block_delta.
 
 import { useCallback, useRef, useState } from "react";
 
@@ -119,16 +118,12 @@ export function useChat(spot: string): UseChatResult {
           if (done) break;
           buf += decoder.decode(value, { stream: true });
 
-          // Process complete SSE frames (separated by blank line).
-          const frames = buf.split("\n\n");
-          buf = frames.pop() ?? "";
-          for (const frame of frames) {
-            const dataLine = frame
-              .split("\n")
-              .find((line) => line.startsWith("data: "));
-            if (!dataLine) continue;
-            const json = dataLine.slice("data: ".length).trim();
-            if (!json || json === "[DONE]") continue;
+          // Process complete JSON lines (one event per line).
+          const lines = buf.split("\n");
+          buf = lines.pop() ?? "";
+          for (const line of lines) {
+            const json = line.trim();
+            if (!json) continue;
             let evt: unknown;
             try {
               evt = JSON.parse(json);

@@ -75,18 +75,16 @@ function fakeSSEResponse(status = 200): { res: Response; ctrl: StreamControls } 
     async push(text: string) {
       controller.enqueue(
         encoder.encode(
-          `event: content_block_delta\ndata: ${JSON.stringify({
+          JSON.stringify({
             type: "content_block_delta",
             delta: { type: "text_delta", text },
-          })}\n\n`,
+          }) + "\n",
         ),
       );
     },
     async close() {
       controller.enqueue(
-        encoder.encode(
-          `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}\n\n`,
-        ),
+        encoder.encode(JSON.stringify({ type: "message_stop" }) + "\n"),
       );
       controller.close();
     },
