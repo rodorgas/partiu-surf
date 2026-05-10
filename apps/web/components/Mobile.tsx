@@ -14,6 +14,7 @@ import {
   FilterChips,
   SuggestionPill,
 } from "@/components/mobile/Shared";
+import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
 
 export const SNAPS = { peek: 18, half: 52, full: 92 } as const;
 export type SheetState = keyof typeof SNAPS;
@@ -54,14 +55,28 @@ type DragRef = {
   vh: number;
 };
 
+type ChatProps = {
+  history: ChatTurn[];
+  streaming: string;
+  status: ChatStatus;
+  error: ChatError | null;
+  send: (text: string) => void;
+  dismissError: () => void;
+  suggestions: string[];
+  /** Called when a suggestion is tapped — expands sheet to `full`. */
+  onSuggestionFire: (text: string) => void;
+};
+
 function Sheet({
   state,
   setState,
   data,
+  chat,
 }: {
   state: SheetState;
   setState: (s: SheetState) => void;
   data: Forecast;
+  chat: ChatProps;
 }) {
   const [livePct, setLivePct] = useState<number | null>(null);
   const dragRef = useRef<DragRef | null>(null);
@@ -154,9 +169,13 @@ function Sheet({
         />
       </div>
 
-      {state === "peek" && livePct == null && <PeekContents data={data} />}
-      {state === "half" && livePct == null && <HalfContents />}
-      {state === "full" && livePct == null && <FullContents onClose={() => setState("peek")} />}
+      {state === "peek" && livePct == null && (
+        <PeekContents data={data} chat={chat} />
+      )}
+      {state === "half" && livePct == null && <HalfContents chat={chat} />}
+      {state === "full" && livePct == null && (
+        <FullContents onClose={() => setState("peek")} chat={chat} />
+      )}
       {livePct != null && <DragHint pct={livePct} />}
     </div>
   );
@@ -178,8 +197,9 @@ function DragHint({ pct }: { pct: number }) {
   );
 }
 
-function PeekContents({ data }: { data: Forecast }) {
+function PeekContents({ data, chat }: { data: Forecast; chat: ChatProps }) {
   const sugg = data.suggestions.slice(0, 3);
+  const disabled = chat.status === "waiting" || chat.status === "streaming";
   return (
     <div style={{ padding: "4px 14px 16px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -205,47 +225,84 @@ function PeekContents({ data }: { data: Forecast }) {
       </div>
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
         {sugg.map((s, i) => (
-          <SuggestionPill key={i}>{s}</SuggestionPill>
+          <SuggestionPill
+            key={i}
+            onClick={disabled ? undefined : () => chat.onSuggestionFire(s)}
+          >
+            {s}
+          </SuggestionPill>
         ))}
       </div>
     </div>
   );
 }
 
-function HalfContents() {
+function HalfContents({ chat }: { chat: ChatProps }) {
+  const showSuggestions = chat.history.length === 0 && chat.status === "idle";
+  // For half-state, show only the latest assistant reply (or current streaming
+  // text). Full conversation is reserved for the full sheet.
+  const lastAssistant = [...chat.history].reverse().find((t) => t.role === "assistant");
   return (
     <>
+      {showSuggestions && (
+        <>
+          <div
+            style={{
+              padding: "4px 14px 6px",
+              fontSize: 11,
+              color: C.inkSoft,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+            }}
+          >
+            Sugestões
+          </div>
+          <div style={{ display: "flex", gap: 6, padding: "0 14px 10px", overflowX: "auto" }}>
+            {chat.suggestions.slice(0, 4).map((s, i) => (
+              <SuggestionPill key={i} onClick={() => chat.onSuggestionFire(s)}>
+                {s}
+              </SuggestionPill>
+            ))}
+          </div>
+        </>
+      )}
       <div
-        style={{
-          padding: "4px 14px 6px",
-          fontSize: 11,
-          color: C.inkSoft,
-          fontWeight: 600,
-          letterSpacing: "0.08em",
-          textTransform: "uppercase",
-        }}
+        data-testid="chat-half-thread"
+        style={{ padding: "8px 14px", flex: 1, overflow: "auto" }}
       >
-        Sugestões
+        {showSuggestions ? (
+          <BotBubble>
+            <b style={{ color: C.deep }}>Bom dia! 🏄‍♀️</b>
+            <br />
+            Pergunta sobre o pico — eu olho a previsão antes de responder.
+          </BotBubble>
+        ) : chat.status === "waiting" ? (
+          <BotBubble typing />
+        ) : chat.status === "streaming" && chat.streaming ? (
+          <BotBubble>
+            <span data-testid="chat-streaming">{chat.streaming}</span>
+          </BotBubble>
+        ) : lastAssistant ? (
+          <BotBubble>
+            <span style={{ whiteSpace: "pre-wrap" }}>{lastAssistant.content}</span>
+          </BotBubble>
+        ) : null}
+
+        {chat.error && (
+          <ErrorBubble
+            kind={chat.error.kind}
+            message={chat.error.message}
+            onRetry={chat.error.kind === "network" ? chat.dismissError : undefined}
+          />
+        )}
       </div>
-      <div style={{ display: "flex", gap: 6, padding: "0 14px 10px", overflowX: "auto" }}>
-        <SuggestionPill>Vale ir agora?</SuggestionPill>
-        <SuggestionPill>Compara Maranduba</SuggestionPill>
-        <SuggestionPill>Por que vento piora?</SuggestionPill>
-      </div>
-      <div style={{ padding: "8px 14px", flex: 1, overflow: "auto" }}>
-        <BotBubble>
-          <b style={{ color: C.deep }}>Bom dia! 🏄‍♀️</b>
-          <br />
-          Itamambuca tá rendendo <b style={{ color: C.green }}>8.9</b> agora. Janela boa{" "}
-          <b>até 10h</b>, depois o vento vira oeste.
-        </BotBubble>
-      </div>
-      <Composer />
+      <Composer onSubmit={chat.send} disabled={chat.status === "waiting" || chat.status === "streaming"} />
     </>
   );
 }
 
-function FullContents({ onClose }: { onClose: () => void }) {
+function FullContents({ onClose, chat }: { onClose: () => void; chat: ChatProps }) {
   return (
     <>
       <div style={{ padding: "2px 16px 10px", display: "flex", alignItems: "center", gap: 8 }}>
@@ -277,6 +334,7 @@ function FullContents({ onClose }: { onClose: () => void }) {
         </button>
       </div>
       <div
+        data-testid="chat-full-thread"
         style={{
           flex: 1,
           padding: "4px 14px",
@@ -286,20 +344,102 @@ function FullContents({ onClose }: { onClose: () => void }) {
           gap: 10,
         }}
       >
-        <BotBubble dark>
-          Bom dia! Itamambuca <b style={{ color: "#7adcd2" }}>8.9/10</b> agora — pico até 10h.
-        </BotBubble>
-        <UserBubble dark>e pro meu fish 5&apos;8&quot;?</UserBubble>
-        <BotBubble dark>
-          Pra fish 5&apos;8&quot; o sweet spot é <b style={{ color: "#7adcd2" }}>1.0–1.6m · 9–12s</b>.
-          Hoje tá 1.7m·13s — um <b>nada</b> grande, mas dentro. <b>Score 8.4</b> pro fish (vs 8.9
-          pro short).
-        </BotBubble>
-        <UserBubble dark>e amanhã?</UserBubble>
-        <BotBubble dark typing />
+        {chat.history.length === 0 && chat.status === "idle" && (
+          <BotBubble dark>
+            Bom dia! Pergunta sobre o pico — eu olho a previsão antes de responder.
+          </BotBubble>
+        )}
+
+        {chat.history.map((turn, i) =>
+          turn.role === "assistant" ? (
+            <BotBubble key={i} dark>
+              <span style={{ whiteSpace: "pre-wrap" }}>{turn.content}</span>
+            </BotBubble>
+          ) : (
+            <UserBubble key={i} dark>
+              {turn.content}
+            </UserBubble>
+          ),
+        )}
+
+        {chat.status === "waiting" && <BotBubble dark typing />}
+
+        {chat.status === "streaming" && chat.streaming && (
+          <BotBubble dark>
+            <span data-testid="chat-streaming-full">{chat.streaming}</span>
+          </BotBubble>
+        )}
+
+        {chat.error && (
+          <ErrorBubble
+            kind={chat.error.kind}
+            message={chat.error.message}
+            onRetry={chat.error.kind === "network" ? chat.dismissError : undefined}
+            dark
+          />
+        )}
       </div>
-      <ComposerDark />
+      <ComposerDark onSubmit={chat.send} disabled={chat.status === "waiting" || chat.status === "streaming"} />
     </>
+  );
+}
+
+function ErrorBubble({
+  kind,
+  message,
+  onRetry,
+  dark,
+}: {
+  kind: "rate_limit" | "network";
+  message: string;
+  onRetry?: () => void;
+  dark?: boolean;
+}) {
+  const amber = kind === "rate_limit";
+  const bg = dark
+    ? amber
+      ? "rgba(217,122,26,0.22)"
+      : "rgba(192,57,43,0.22)"
+    : amber
+    ? `${C.amber}22`
+    : `${C.red}1a`;
+  const fg = dark ? "#fff" : amber ? C.amber : C.red;
+  return (
+    <div
+      data-testid={`chat-error-${kind}`}
+      style={{
+        padding: "10px 12px",
+        borderRadius: 12,
+        background: bg,
+        color: fg,
+        fontSize: 12.5,
+        lineHeight: 1.45,
+        fontWeight: 500,
+        maxWidth: "92%",
+      }}
+    >
+      {message}
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          style={{
+            display: "block",
+            marginTop: 6,
+            border: "none",
+            background: "transparent",
+            color: fg,
+            fontWeight: 600,
+            fontSize: 12.5,
+            cursor: "pointer",
+            padding: 0,
+            textDecoration: "underline",
+          }}
+        >
+          tente de novo
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -397,12 +537,21 @@ function Dot({ d = "0s" }: { d?: string }) {
   );
 }
 
-function Composer() {
+function Composer({
+  onSubmit,
+  disabled,
+}: {
+  onSubmit: (text: string) => void;
+  disabled?: boolean;
+}) {
   const [v, setV] = useState("");
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
+        const trimmed = v.trim();
+        if (!trimmed || disabled) return;
+        onSubmit(trimmed);
         setV("");
       }}
       style={{ padding: "8px 14px calc(14px + env(safe-area-inset-bottom))" }}
@@ -422,6 +571,7 @@ function Composer() {
           value={v}
           onChange={(e) => setV(e.target.value)}
           placeholder="pergunte sobre o pico…"
+          disabled={disabled}
           style={{
             flex: 1,
             fontSize: 13,
@@ -435,6 +585,7 @@ function Composer() {
         <button
           type="submit"
           aria-label="enviar"
+          disabled={disabled || !v.trim()}
           style={{
             width: 30,
             height: 30,
@@ -442,7 +593,8 @@ function Composer() {
             background: C.coral,
             color: "#fff",
             border: "none",
-            cursor: "pointer",
+            cursor: disabled ? "default" : "pointer",
+            opacity: disabled || !v.trim() ? 0.5 : 1,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -456,12 +608,21 @@ function Composer() {
   );
 }
 
-function ComposerDark() {
+function ComposerDark({
+  onSubmit,
+  disabled,
+}: {
+  onSubmit: (text: string) => void;
+  disabled?: boolean;
+}) {
   const [v, setV] = useState("");
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
+        const trimmed = v.trim();
+        if (!trimmed || disabled) return;
+        onSubmit(trimmed);
         setV("");
       }}
       style={{ padding: "8px 14px calc(14px + env(safe-area-inset-bottom))" }}
@@ -480,6 +641,7 @@ function ComposerDark() {
           value={v}
           onChange={(e) => setV(e.target.value)}
           placeholder="continua a conversa…"
+          disabled={disabled}
           style={{
             flex: 1,
             fontSize: 13,
@@ -493,6 +655,7 @@ function ComposerDark() {
         <button
           type="submit"
           aria-label="enviar"
+          disabled={disabled || !v.trim()}
           style={{
             width: 30,
             height: 30,
@@ -500,7 +663,8 @@ function ComposerDark() {
             background: "#7adcd2",
             color: "#0a3a44",
             border: "none",
-            cursor: "pointer",
+            cursor: disabled ? "default" : "pointer",
+            opacity: disabled || !v.trim() ? 0.5 : 1,
             fontWeight: 700,
             display: "inline-flex",
             alignItems: "center",
@@ -515,9 +679,33 @@ function ComposerDark() {
   );
 }
 
-export function Mobile({ data }: { data: Forecast }) {
+export function Mobile({ data, spot }: { data: Forecast; spot: string }) {
   const [state, setState] = useState<SheetState>("peek");
+  const { history, streaming, status, error, send, dismissError } = useChat(spot);
   const dim = state === "full";
+
+  // Suggestion taps expand the sheet AND immediately fire the chat send.
+  // Per the phase doc, clicking a suggestion should not require a second
+  // tap on the submit button.
+  const onSuggestionFire = useCallback(
+    (text: string) => {
+      setState("full");
+      void send(text);
+    },
+    [send],
+  );
+
+  const chat: ChatProps = {
+    history,
+    streaming,
+    status,
+    error,
+    send,
+    dismissError,
+    suggestions: data.suggestions,
+    onSuggestionFire,
+  };
+
   return (
     <div
       style={{
@@ -552,7 +740,7 @@ export function Mobile({ data }: { data: Forecast }) {
           }}
         />
       )}
-      <Sheet state={state} setState={setState} data={data} />
+      <Sheet state={state} setState={setState} data={data} chat={chat} />
     </div>
   );
 }

@@ -5,6 +5,7 @@
 import { useRef, useState } from "react";
 import type { Forecast } from "@/lib/data";
 import { dirLabel } from "@/lib/data";
+import { useChat } from "@/lib/useChat";
 
 const C = {
   bg:       "#f5e8d2",
@@ -31,18 +32,128 @@ const C = {
 const scoreInk = (s: number): string =>
   s >= 7 ? C.green : s >= 4 ? C.amber : C.red;
 
-function ChatPanel({ data }: { data: Forecast }) {
+function ChatBubble({
+  role,
+  children,
+  tone,
+}: {
+  role: "user" | "assistant" | "error";
+  children: React.ReactNode;
+  tone?: "amber" | "red";
+}) {
+  if (role === "user") {
+    return (
+      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <div
+          style={{
+            maxWidth: "82%",
+            padding: "10px 12px",
+            borderRadius: 14,
+            borderTopRightRadius: 4,
+            background: C.deep,
+            color: "#fff",
+            fontSize: 13.5,
+            lineHeight: 1.45,
+            fontWeight: 500,
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    );
+  }
+
+  if (role === "error") {
+    const bg = tone === "amber" ? `${C.amber}22` : `${C.red}1a`;
+    const fg = tone === "amber" ? C.amber : C.red;
+    return (
+      <div
+        style={{
+          maxWidth: "92%",
+          padding: "10px 12px",
+          borderRadius: 14,
+          background: bg,
+          color: fg,
+          fontSize: 13,
+          lineHeight: 1.45,
+          fontWeight: 500,
+        }}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        background: C.surface,
+        borderRadius: 14,
+        borderTopLeftRadius: 4,
+        padding: "10px 14px",
+        boxShadow: `0 1px 0 ${C.rule}`,
+        maxWidth: "92%",
+        fontSize: 13.5,
+        lineHeight: 1.55,
+        color: C.ink,
+        whiteSpace: "pre-wrap",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function TypingDots() {
+  return (
+    <span
+      aria-label="copiloto digitando"
+      data-testid="chat-typing"
+      style={{ display: "inline-flex", gap: 4, alignItems: "center", padding: "2px 0" }}
+    >
+      {[0, 0.15, 0.3].map((d, i) => (
+        <span
+          key={i}
+          style={{
+            display: "inline-block",
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            background: C.inkSoft,
+            animation: `bouncedot 1s ${d}s infinite`,
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
+function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const onPick = (s: string) => {
-    setDraft(s);
-    inputRef.current?.focus();
+  const { history, streaming, status, error, send, dismissError } = useChat(spot);
+
+  const sendingDisabled = status === "waiting" || status === "streaming";
+
+  const submit = async (text: string) => {
+    if (sendingDisabled) return;
+    setDraft("");
+    await send(text);
   };
+
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.trim()) return;
-    setDraft("");
+    void submit(draft);
   };
+
+  const onSuggestionClick = (s: string) => {
+    if (sendingDisabled) return;
+    setDraft(s);
+    void submit(s);
+  };
+
+  const showSuggestions = history.length === 0;
 
   return (
     <aside
@@ -94,7 +205,7 @@ function ChatPanel({ data }: { data: Forecast }) {
         </div>
       </div>
 
-      <div style={{ padding: "4px 26px 16px" }}>
+      <div style={{ padding: "4px 26px 12px" }}>
         <div
           style={{
             background: C.surface,
@@ -122,49 +233,113 @@ function ChatPanel({ data }: { data: Forecast }) {
             Eu olho swell, vento e maré, comparo com seu nível e te falo se tá bom pra remar.
           </p>
           <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: C.inkDim }}>
-            Já peguei sua localização — Itamambuca tá rendendo <b style={{ color: C.green }}>8.9</b> agora.
-            Confere ali do lado.
+            Pergunta sobre o pico — eu olho a previsão antes de responder.
           </p>
         </div>
       </div>
 
-      <div style={{ padding: "4px 18px", flex: "1 1 auto", overflow: "auto" }}>
-        <div
-          style={{
-            fontSize: 11,
-            color: C.inkSoft,
-            padding: "6px 8px 8px",
-            letterSpacing: "0.04em",
-            fontWeight: 600,
-          }}
-        >
-          ✶ tente perguntar
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {data.suggestions.map((s, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => onPick(s)}
+      <div
+        data-testid="chat-history"
+        style={{
+          padding: "4px 18px",
+          flex: "1 1 auto",
+          overflow: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 8,
+        }}
+      >
+        {history.map((turn, i) => (
+          <ChatBubble key={i} role={turn.role}>
+            {turn.content}
+          </ChatBubble>
+        ))}
+
+        {status === "waiting" && (
+          <ChatBubble role="assistant">
+            <TypingDots />
+          </ChatBubble>
+        )}
+
+        {status === "streaming" && streaming && (
+          <ChatBubble role="assistant">
+            <span data-testid="chat-streaming">{streaming}</span>
+          </ChatBubble>
+        )}
+
+        {error && (
+          <ChatBubble
+            role="error"
+            tone={error.kind === "rate_limit" ? "amber" : "red"}
+          >
+            <div data-testid={`chat-error-${error.kind}`}>{error.message}</div>
+            {error.kind === "network" && (
+              <button
+                type="button"
+                onClick={dismissError}
+                style={{
+                  marginTop: 6,
+                  border: "none",
+                  background: "transparent",
+                  color: C.red,
+                  fontWeight: 600,
+                  fontSize: 12.5,
+                  cursor: "pointer",
+                  padding: 0,
+                  textDecoration: "underline",
+                }}
+              >
+                tente de novo
+              </button>
+            )}
+          </ChatBubble>
+        )}
+
+        {showSuggestions && (
+          <>
+            <div
               style={{
-                textAlign: "left",
-                padding: "10px 14px",
-                border: "none",
-                borderRadius: 14,
-                background: i === 0 ? C.deep : C.surface,
-                color: i === 0 ? "#fff" : C.ink,
-                fontFamily: C.sans,
-                fontSize: 13.5,
-                cursor: "pointer",
-                boxShadow: i === 0 ? `0 4px 14px rgba(10,58,68,0.18)` : `0 1px 0 ${C.rule}`,
-                lineHeight: 1.4,
+                fontSize: 11,
+                color: C.inkSoft,
+                padding: "6px 8px 8px",
+                letterSpacing: "0.04em",
+                fontWeight: 600,
               }}
             >
-              {i === 0 && <span style={{ marginRight: 8 }}>✦</span>}
-              {s}
-            </button>
-          ))}
-        </div>
+              ✶ tente perguntar
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {data.suggestions.map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onSuggestionClick(s)}
+                  disabled={sendingDisabled}
+                  style={{
+                    textAlign: "left",
+                    padding: "10px 14px",
+                    border: "none",
+                    borderRadius: 14,
+                    background: i === 0 ? C.deep : C.surface,
+                    color: i === 0 ? "#fff" : C.ink,
+                    fontFamily: C.sans,
+                    fontSize: 13.5,
+                    cursor: sendingDisabled ? "default" : "pointer",
+                    opacity: sendingDisabled ? 0.6 : 1,
+                    boxShadow:
+                      i === 0
+                        ? `0 4px 14px rgba(10,58,68,0.18)`
+                        : `0 1px 0 ${C.rule}`,
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {i === 0 && <span style={{ marginRight: 8 }}>✦</span>}
+                  {s}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <form onSubmit={onSubmit} style={{ padding: "14px 18px 22px" }}>
@@ -184,6 +359,7 @@ function ChatPanel({ data }: { data: Forecast }) {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="pergunta sobre a previsão…"
+            disabled={sendingDisabled}
             style={{
               flex: 1,
               fontSize: 14,
@@ -197,6 +373,7 @@ function ChatPanel({ data }: { data: Forecast }) {
           <button
             type="submit"
             aria-label="enviar"
+            disabled={sendingDisabled || !draft.trim()}
             style={{
               width: 34,
               height: 34,
@@ -204,7 +381,8 @@ function ChatPanel({ data }: { data: Forecast }) {
               background: C.coral,
               color: "#fff",
               border: "none",
-              cursor: "pointer",
+              cursor: sendingDisabled ? "default" : "pointer",
+              opacity: sendingDisabled || !draft.trim() ? 0.5 : 1,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -971,7 +1149,7 @@ function SideCards({ data }: { data: Forecast }) {
   );
 }
 
-export function Desktop({ data }: { data: Forecast }) {
+export function Desktop({ data, spot }: { data: Forecast; spot: string }) {
   return (
     <div
       style={{
@@ -983,7 +1161,7 @@ export function Desktop({ data }: { data: Forecast }) {
         fontFamily: C.sans,
       }}
     >
-      <ChatPanel data={data} />
+      <ChatPanel data={data} spot={spot} />
       <main style={{ flex: "1 1 auto", overflow: "auto" }}>
         <TopBar />
         <Hero data={data} />
