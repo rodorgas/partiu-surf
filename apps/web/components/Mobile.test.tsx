@@ -25,13 +25,13 @@ describe("nearestSnap()", () => {
 
 describe("<Mobile />", () => {
   it("renders with the sheet starting at peek state", () => {
-    render(<Mobile data={MOCK_FORECAST} />);
+    render(<Mobile data={MOCK_FORECAST} spot="itamambuca" />);
     const sheet = screen.getByTestId("mobile-sheet");
     expect(sheet.getAttribute("data-state")).toBe("peek");
   });
 
   it("cycles state peek → half → full → peek when the grabber is clicked", () => {
-    render(<Mobile data={MOCK_FORECAST} />);
+    render(<Mobile data={MOCK_FORECAST} spot="itamambuca" />);
     const grabber = screen.getByTestId("sheet-grabber");
     const sheet = screen.getByTestId("mobile-sheet");
     expect(sheet.getAttribute("data-state")).toBe("peek");
@@ -44,7 +44,7 @@ describe("<Mobile />", () => {
   });
 
   it("renders the dim overlay only in full state", () => {
-    render(<Mobile data={MOCK_FORECAST} />);
+    render(<Mobile data={MOCK_FORECAST} spot="itamambuca" />);
     expect(screen.queryByTestId("mobile-dim")).toBeNull();
     const grabber = screen.getByTestId("sheet-grabber");
     fireEvent.click(grabber); // half

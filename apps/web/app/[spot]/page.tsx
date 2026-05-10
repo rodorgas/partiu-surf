@@ -40,10 +40,10 @@ export default async function SpotPage({
   return (
     <>
       <div className="layout-desktop">
-        <Desktop data={data} />
+        <Desktop data={data} spot={spot} />
       </div>
       <div className="layout-mobile">
-        <Mobile data={data} />
+        <Mobile data={data} spot={spot} />
       </div>
     </>
   );
