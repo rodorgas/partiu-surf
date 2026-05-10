@@ -1,0 +1,313 @@
+{
+  "degToCompass": [
+    {
+      "deg": 0,
+      "label": "N"
+    },
+    {
+      "deg": 11.24,
+      "label": "N"
+    },
+    {
+      "deg": 11.25,
+      "label": "NNE"
+    },
+    {
+      "deg": 22.5,
+      "label": "NNE"
+    },
+    {
+      "deg": 45,
+      "label": "NE"
+    },
+    {
+      "deg": 90,
+      "label": "E"
+    },
+    {
+      "deg": 135,
+      "label": "SE"
+    },
+    {
+      "deg": 180,
+      "label": "S"
+    },
+    {
+      "deg": 225,
+      "label": "SW"
+    },
+    {
+      "deg": 270,
+      "label": "W"
+    },
+    {
+      "deg": 315,
+      "label": "NW"
+    },
+    {
+      "deg": 359,
+      "label": "N"
+    },
+    {
+      "deg": 360,
+      "label": "N"
+    },
+    {
+      "deg": 720,
+      "label": "N"
+    },
+    {
+      "deg": -1,
+      "label": "N"
+    },
+    {
+      "deg": -22.5,
+      "label": "NNW"
+    },
+    {
+      "deg": -45,
+      "label": "NW"
+    },
+    {
+      "deg": 11.249,
+      "label": "N"
+    }
+  ],
+  "angleDiff": [
+    {
+      "a": 0,
+      "b": 0,
+      "diff": 0
+    },
+    {
+      "a": 0,
+      "b": 180,
+      "diff": 180
+    },
+    {
+      "a": 180,
+      "b": 0,
+      "diff": 180
+    },
+    {
+      "a": 90,
+      "b": 270,
+      "diff": 180
+    },
+    {
+      "a": 270,
+      "b": 90,
+      "diff": 180
+    },
+    {
+      "a": 10,
+      "b": 350,
+      "diff": 20
+    },
+    {
+      "a": 350,
+      "b": 10,
+      "diff": 20
+    },
+    {
+      "a": 45,
+      "b": 315,
+      "diff": 90
+    },
+    {
+      "a": -30,
+      "b": 30,
+      "diff": 60
+    },
+    {
+      "a": 359,
+      "b": 1,
+      "diff": 2
+    },
+    {
+      "a": 165,
+      "b": 185,
+      "diff": 20
+    },
+    {
+      "a": 165,
+      "b": 245,
+      "diff": 80
+    },
+    {
+      "a": 200,
+      "b": 20,
+      "diff": 180
+    }
+  ],
+  "inArc": [
+    {
+      "deg": 90,
+      "start": 0,
+      "end": 180,
+      "result": true
+    },
+    {
+      "deg": 200,
+      "start": 0,
+      "end": 180,
+      "result": false
+    },
+    {
+      "deg": 350,
+      "start": 350,
+      "end": 10,
+      "result": true
+    },
+    {
+      "deg": 5,
+      "start": 350,
+      "end": 10,
+      "result": true
+    },
+    {
+      "deg": 180,
+      "start": 350,
+      "end": 10,
+      "result": false
+    },
+    {
+      "deg": 45,
+      "start": 0,
+      "end": 90,
+      "result": true
+    },
+    {
+      "deg": 91,
+      "start": 0,
+      "end": 90,
+      "result": false
+    },
+    {
+      "deg": 220,
+      "start": 170,
+      "end": 230,
+      "result": true
+    },
+    {
+      "deg": 290,
+      "start": 220,
+      "end": 290,
+      "result": true
+    },
+    {
+      "deg": 291,
+      "start": 220,
+      "end": 290,
+      "result": false
+    },
+    {
+      "deg": -5,
+      "start": 350,
+      "end": 10,
+      "result": true
+    }
+  ],
+  "curve": {
+    "points": [
+      [
+        3,
+        1
+      ],
+      [
+        6,
+        4
+      ],
+      [
+        10,
+        7
+      ],
+      [
+        15,
+        9
+      ],
+      [
+        25,
+        10
+      ],
+      [
+        35,
+        6
+      ],
+      [
+        45,
+        3
+      ],
+      [
+        60,
+        1
+      ],
+      [
+        99,
+        0
+      ]
+    ],
+    "samples": [
+      {
+        "value": 0,
+        "score": 1
+      },
+      {
+        "value": 2.9,
+        "score": 1
+      },
+      {
+        "value": 3,
+        "score": 4
+      },
+      {
+        "value": 5.999,
+        "score": 4
+      },
+      {
+        "value": 6,
+        "score": 7
+      },
+      {
+        "value": 9.9,
+        "score": 7
+      },
+      {
+        "value": 10,
+        "score": 9
+      },
+      {
+        "value": 14.5,
+        "score": 9
+      },
+      {
+        "value": 24.99,
+        "score": 10
+      },
+      {
+        "value": 25,
+        "score": 6
+      },
+      {
+        "value": 34,
+        "score": 6
+      },
+      {
+        "value": 35,
+        "score": 3
+      },
+      {
+        "value": 99,
+        "score": 0
+      },
+      {
+        "value": 100,
+        "score": 0
+      },
+      {
+        "value": -1,
+        "score": 1
+      }
+    ]
+  }
+}
