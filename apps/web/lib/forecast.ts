@@ -59,7 +59,14 @@ export type RawForecast = {
 
 const FORECAST_NAMESPACE = "forecast";
 
-/** Public entry point — used by app/[spot]/page.tsx. */
+/**
+ * Public entry point — used by app/[spot]/page.tsx.
+ *
+ * Redis is treated as best-effort: in local dev without Upstash env vars set
+ * (and during integration tests that don't mock @upstash/redis), get/set will
+ * throw. We swallow those errors so the page still renders. In production
+ * Redis is always provisioned via Vercel Marketplace, so this is a no-op.
+ */
 export async function getForecast(
   slug: string,
   date: string,
@@ -68,13 +75,43 @@ export async function getForecast(
   if (!spot) throw new Error(`unknown spot: ${slug}`);
 
   const cacheKey = `${slug}:${date}`;
-  const cached = await getCached<Forecast>(FORECAST_NAMESPACE, cacheKey);
+  const cached = await safeGetCached(cacheKey);
   if (cached) return cached;
 
   const raw = await fetchRawForecast(spot, date);
   const forecast = adaptRawToForecast(raw, spot);
-  await setCached(FORECAST_NAMESPACE, cacheKey, forecast);
+  await safeSetCached(cacheKey, forecast);
   return forecast;
+}
+
+async function safeGetCached(key: string): Promise<Forecast | null> {
+  try {
+    return await getCached<Forecast>(FORECAST_NAMESPACE, key);
+  } catch (err) {
+    if (!isRedisMisconfigured(err)) console.warn("getCached failed:", err);
+    return null;
+  }
+}
+
+async function safeSetCached(key: string, value: Forecast): Promise<void> {
+  try {
+    await setCached(FORECAST_NAMESPACE, key, value);
+  } catch (err) {
+    if (!isRedisMisconfigured(err)) console.warn("setCached failed:", err);
+  }
+}
+
+/**
+ * Heuristic: Upstash throws `TypeError: Failed to parse URL from /pipeline`
+ * when env vars are missing. Don't spam the log for this expected dev case.
+ */
+function isRedisMisconfigured(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  return (
+    err.message.includes("Failed to parse URL") ||
+    err.message.includes("REST_URL") ||
+    err.message.includes("REST_TOKEN")
+  );
 }
 
 /** Fetch the raw Python output. Exposed for testing. */
