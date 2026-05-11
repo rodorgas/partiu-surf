@@ -48,7 +48,7 @@ function buildRawForecast(overrides?: Partial<RawForecast>): RawForecast {
       },
     ],
     hasTide: false,
-    gear: "all",
+    gear: "auto",
     ...overrides,
   };
 }
@@ -98,19 +98,19 @@ describe("buildSpotUrl", () => {
   const today = "2026-05-10";
   it("omits defaults", () => {
     expect(buildSpotUrl("arpoador", { today })).toBe("/arpoador");
-    expect(buildSpotUrl("arpoador", { gear: "all", today })).toBe("/arpoador");
+    expect(buildSpotUrl("arpoador", { gear: "auto", today })).toBe("/arpoador");
     expect(buildSpotUrl("arpoador", { date: today, today })).toBe("/arpoador");
   });
   it("emits only non-default params", () => {
-    expect(buildSpotUrl("arpoador", { gear: "bb", today })).toBe(
-      "/arpoador?gear=bb",
+    expect(buildSpotUrl("arpoador", { gear: "bodyboard", today })).toBe(
+      "/arpoador?gear=bodyboard",
     );
     expect(buildSpotUrl("arpoador", { date: "2026-05-12", today })).toBe(
       "/arpoador?date=2026-05-12",
     );
     expect(
-      buildSpotUrl("arpoador", { gear: "bb", date: "2026-05-12", today }),
-    ).toBe("/arpoador?gear=bb&date=2026-05-12");
+      buildSpotUrl("arpoador", { gear: "bodyboard", date: "2026-05-12", today }),
+    ).toBe("/arpoador?gear=bodyboard&date=2026-05-12");
   });
 });
 

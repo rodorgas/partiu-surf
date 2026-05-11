@@ -26,10 +26,10 @@ _VENDORED = Path(__file__).resolve().parent / "_vendored"
 if str(_VENDORED) not in sys.path:
     sys.path.insert(0, str(_VENDORED))
 
-from surfcheck.config import GEAR, TZ  # noqa: E402
+from surfcheck.config import GEAR, TZ, normalize_gear_key  # noqa: E402
 from surfcheck.fetch import fetch_forecast, fetch_marine  # noqa: E402
 from surfcheck.geometry import deg_to_compass  # noqa: E402
-from surfcheck.scoring import compute, label  # noqa: E402
+from surfcheck.scoring import compute, compute_best, label  # noqa: E402
 
 
 # Portuguese tide labels matching the UI's `TideState` type in lib/data.ts.
@@ -52,7 +52,7 @@ def _tide_lookup(lat: float, lon: float, date: str | None = None, days: int = 1)
 
 def _build_hour(
     iso: str, dt: datetime, mh: dict, mi: int, fh: dict, f_idx: dict,
-    spot_tuple: tuple, gear: dict, tide,
+    spot_tuple: tuple, gear_key: str, tide,
 ) -> dict:
     """Aligned hourly row, shaped to match lib/data.ts:ForecastHour."""
     sh = mh["swell_wave_height"][mi]
@@ -73,8 +73,16 @@ def _build_hour(
             tide_st_pt = _TIDE_PT.get(state_en, "subindo")
             tide_score = score_fn(state_en, spot_tuple[6])
 
-    score, ws_s = compute(sh, sp, sdd, ws, wdd, wg, spot_tuple, gear, tide_score)
-    flag = label(score, sh, ws_s, gear)
+    if gear_key == "auto":
+        score, ws_s, winner = compute_best(
+            sh, sp, sdd, ws, wdd, wg, spot_tuple, GEAR, tide_score,
+        )
+    else:
+        score, ws_s = compute(
+            sh, sp, sdd, ws, wdd, wg, spot_tuple, GEAR[gear_key], tide_score,
+        )
+        winner = gear_key
+    flag = label(score, sh, ws_s, GEAR[winner])
     # Only flag risky/danger conditions in the response. The UI re-derives the
     # green/yellow/red dot from the score itself.
     flag_str = flag if flag in ("⚠️", "\U0001f4a4") else ""
@@ -93,6 +101,7 @@ def _build_hour(
         "tide": tide_st_pt or "subindo",
         "hasTide": tide_h is not None,
         "flag": flag_str,
+        "winner": winner,
         "_swDirLabel": deg_to_compass(sdd),
         "_wDirLabel": deg_to_compass(wdd),
         "_wsSub": round(ws_s, 2),
@@ -100,7 +109,7 @@ def _build_hour(
 
 
 def _build_rows(marine: dict, forecast: dict, cutoff: datetime, hours: int | None,
-                spot_tuple: tuple, gear: dict, tide):
+                spot_tuple: tuple, gear_key: str, tide):
     """Same alignment logic as `cli._build_rows` — keep them in sync."""
     mh = marine["hourly"]
     fh = forecast["hourly"]
@@ -116,7 +125,7 @@ def _build_rows(marine: dict, forecast: dict, cutoff: datetime, hours: int | Non
             # Marine API can return hours the atmosphere API skips; mirror the
             # CLI which raises KeyError. Here we just skip rather than 500.
             continue
-        rows.append(_build_hour(t, dt, mh, mi, fh, f_idx, spot_tuple, gear, tide))
+        rows.append(_build_hour(t, dt, mh, mi, fh, f_idx, spot_tuple, gear_key, tide))
     return rows
 
 
@@ -154,10 +163,9 @@ def build_forecast(params: dict) -> dict:
     shelter = [tuple(p) for p in params.get("shelter") or []]
     break_type = params.get("breakType", "beach")
     tide_pref = params.get("tidePref", "any")
-    gear_key = params.get("gear", "all")
-    if gear_key not in GEAR:
-        gear_key = "all"
-    gear = GEAR[gear_key]
+    gear_key = normalize_gear_key(params.get("gear", "auto"))
+    if gear_key != "auto" and gear_key not in GEAR:
+        gear_key = "auto"
     date = params.get("date") or None
     hours = int(params["hours"]) if params.get("hours") else None
 
@@ -177,7 +185,7 @@ def build_forecast(params: dict) -> dict:
             tzinfo=None, minute=0, second=0, microsecond=0,
         )
 
-    rows = _build_rows(marine, forecast_data, cutoff, hours, spot_tuple, gear, tide)
+    rows = _build_rows(marine, forecast_data, cutoff, hours, spot_tuple, gear_key, tide)
 
     # Daylight slice — the UI's "06h–18h · janela diurna" header expects this.
     daylight = [r for r in rows if 6 <= int(r["h"].rstrip("h")) <= 18]

@@ -8,6 +8,7 @@ import type { Forecast } from "@/lib/data";
 import { dirLabel } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
+import { ScoreMethodology } from "@/components/ScoreMethodology";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
 import { dateKicker, formatDateLong, forecastDates, todayISO } from "@/lib/date";
@@ -50,12 +51,19 @@ function countByState(): Record<StateUF, number> {
 }
 
 const GEAR_LABELS: Record<GearKey, string> = {
-  all: "Auto",
-  bb: "Bodyboard",
-  short: "Shortboard",
-  trekkinho: "Trekkinho",
+  auto: "Auto",
+  bodyboard: "Bodyboard",
+  longboard: "Longboard",
+  funboard: "Funboard",
+  shortboard: "Shortboard",
 };
-const GEAR_ORDER: GearKey[] = ["all", "bb", "short", "trekkinho"];
+const GEAR_ORDER: GearKey[] = [
+  "auto",
+  "bodyboard",
+  "longboard",
+  "funboard",
+  "shortboard",
+];
 
 const C = {
   bg:       "#f5e8d2",
@@ -452,41 +460,110 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
   );
 }
 
-function GearChip({
-  gear,
-  current,
+function GearPicker({
   spot,
+  gear,
   date,
   today,
-  children,
 }: {
-  gear: GearKey;
-  current: GearKey;
   spot: string;
+  gear: GearKey;
   date: string;
   today: string;
-  children: React.ReactNode;
 }) {
-  const active = gear === current;
-  const href = buildSpotUrl(spot, { gear, date, today });
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const label = GEAR_LABELS[gear];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
-    <Link
-      href={href}
-      scroll={false}
-      style={{
-        fontSize: 13,
-        padding: "10px 14px",
-        borderRadius: 999,
-        background: active ? C.deep : C.surface,
-        color: active ? "#fff" : C.ink,
-        boxShadow: active ? `0 4px 12px rgba(10,58,68,0.18)` : `0 1px 0 ${C.rule}`,
-        whiteSpace: "nowrap",
-        fontWeight: 500,
-        textDecoration: "none",
-      }}
-    >
-      {children}
-    </Link>
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        data-testid="gear-picker-toggle"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          background: C.surface,
+          borderRadius: 999,
+          padding: "10px 16px",
+          boxShadow: `0 1px 0 ${C.rule}`,
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}
+      >
+        <span style={{ color: C.teal }}>◑</span>
+        <span style={{ fontSize: 14, color: C.ink, fontWeight: 600 }}>
+          {label}
+        </span>
+        <span style={{ fontSize: 11, color: C.inkSoft, marginLeft: 2 }}>
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          data-testid="gear-picker-menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            minWidth: 180,
+            background: C.surface,
+            borderRadius: 14,
+            boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
+            padding: 6,
+            listStyle: "none",
+            margin: 0,
+            zIndex: 5,
+          }}
+        >
+          {GEAR_ORDER.map((g) => {
+            const isCurrent = g === gear;
+            return (
+              <li key={g}>
+                <Link
+                  href={buildSpotUrl(spot, { gear: g, date, today })}
+                  scroll={false}
+                  style={{
+                    display: "block",
+                    padding: "9px 12px",
+                    borderRadius: 10,
+                    background: isCurrent ? C.foam : "transparent",
+                    color: C.ink,
+                    textDecoration: "none",
+                    fontSize: 14,
+                    fontWeight: isCurrent ? 600 : 500,
+                  }}
+                >
+                  {GEAR_LABELS[g]}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -989,18 +1066,7 @@ function TopBar({
     >
       <SpotPicker key={spot} spot={spot} gear={gear} date={date} today={today} />
       <DatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
-      {GEAR_ORDER.map((g) => (
-        <GearChip
-          key={g}
-          gear={g}
-          current={gear}
-          spot={spot}
-          date={date}
-          today={today}
-        >
-          {GEAR_LABELS[g]}
-        </GearChip>
-      ))}
+      <GearPicker spot={spot} gear={gear} date={date} today={today} />
     </div>
   );
 }
@@ -1361,6 +1427,7 @@ function HourTable({ data }: { data: Forecast }) {
           );
         })}
       </div>
+      <ScoreMethodology variant="desktop" />
     </div>
   );
 }
@@ -1713,7 +1780,7 @@ function SideCards({ data }: { data: Forecast }) {
 export function Desktop({
   data,
   spot,
-  gear = "all",
+  gear = "auto",
   date,
   today,
 }: {

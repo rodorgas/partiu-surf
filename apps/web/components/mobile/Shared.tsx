@@ -49,12 +49,19 @@ function countByState(): Record<StateUF, number> {
 type Region = StateUF | "all";
 
 const GEAR_LABELS: Record<GearKey, string> = {
-  all: "Auto",
-  bb: "BB",
-  short: "Short",
-  trekkinho: "Trekkinho",
+  auto: "Auto",
+  bodyboard: "BB",
+  longboard: "Long",
+  funboard: "Fun",
+  shortboard: "Short",
 };
-const GEAR_ORDER: GearKey[] = ["all", "bb", "short", "trekkinho"];
+const GEAR_ORDER: GearKey[] = [
+  "auto",
+  "bodyboard",
+  "longboard",
+  "funboard",
+  "shortboard",
+];
 
 export const C = {
   bg:       "#f5e8d2",
@@ -415,7 +422,7 @@ function MobileSpotPicker({
 export function AppBar({
   tight,
   spot,
-  gear = "all",
+  gear = "auto",
   date,
   today,
 }: {
@@ -709,41 +716,105 @@ export function Chip({ active, children }: { active?: boolean; children: React.R
   );
 }
 
-function GearChipLink({
-  gear,
-  current,
+function MobileGearPicker({
   spot,
+  gear,
   date,
   today,
-  children,
 }: {
-  gear: GearKey;
-  current: GearKey;
   spot: string;
+  gear: GearKey;
   date: string;
   today: string;
-  children: React.ReactNode;
 }) {
-  const active = gear === current;
-  const href = buildSpotUrl(spot, { gear, date, today });
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const label = GEAR_LABELS[gear];
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
   return (
-    <Link
-      href={href}
-      scroll={false}
-      style={{
-        fontSize: 12,
-        padding: "7px 12px",
-        borderRadius: 999,
-        background: active ? C.deep : C.surface,
-        color: active ? "#fff" : C.ink,
-        boxShadow: active ? `0 2px 8px rgba(10,58,68,0.18)` : `0 1px 0 ${C.rule}`,
-        whiteSpace: "nowrap",
-        fontWeight: 500,
-        textDecoration: "none",
-      }}
-    >
-      {children}
-    </Link>
+    <div ref={rootRef} style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        data-testid="mobile-gear-picker-toggle"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          padding: "7px 12px",
+          background: open ? C.foam : C.surface,
+          color: C.ink,
+          borderRadius: 999,
+          fontSize: 12,
+          fontWeight: 500,
+          boxShadow: open ? `0 2px 8px rgba(10,58,68,0.18)` : `0 1px 0 ${C.rule}`,
+          border: "none",
+          cursor: "pointer",
+          fontFamily: "inherit",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span style={{ color: C.teal }}>◑</span>
+        {label}
+        <span style={{ fontSize: 10, color: C.inkSoft }}>
+          {open ? "▴" : "▾"}
+        </span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          data-testid="mobile-gear-picker-menu"
+          style={{
+            position: "absolute",
+            top: "calc(100% + 6px)",
+            right: 0,
+            minWidth: 160,
+            background: C.surface,
+            borderRadius: 12,
+            boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
+            padding: 4,
+            listStyle: "none",
+            margin: 0,
+            zIndex: 5,
+          }}
+        >
+          {GEAR_ORDER.map((g) => {
+            const isCurrent = g === gear;
+            return (
+              <li key={g}>
+                <Link
+                  href={buildSpotUrl(spot, { gear: g, date, today })}
+                  scroll={false}
+                  style={{
+                    display: "block",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    background: isCurrent ? C.foam : "transparent",
+                    color: C.ink,
+                    textDecoration: "none",
+                    fontSize: 13,
+                    fontWeight: isCurrent ? 600 : 500,
+                  }}
+                >
+                  {GEAR_LABELS[g]}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -861,7 +932,7 @@ function MobileDatePicker({
 
 export function FilterChips({
   spot,
-  gear = "all",
+  gear = "auto",
   date,
   today,
 }: {
@@ -873,18 +944,7 @@ export function FilterChips({
   return (
     <div style={{ display: "flex", gap: 6, padding: "0 16px", overflowX: "auto" }}>
       <MobileDatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
-      {GEAR_ORDER.map((g) => (
-        <GearChipLink
-          key={g}
-          gear={g}
-          current={gear}
-          spot={spot}
-          date={date}
-          today={today}
-        >
-          {GEAR_LABELS[g]}
-        </GearChipLink>
-      ))}
+      <MobileGearPicker spot={spot} gear={gear} date={date} today={today} />
     </div>
   );
 }
