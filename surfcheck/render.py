@@ -10,12 +10,18 @@ def _tide_str(r):
     return f"{r['tide_h']:.1f}m {r['tide_st'][:4]}"
 
 
-def render_hours(rows, name, gear_key, when, gear, with_tide=False):
-    tag = "" if gear_key == "all" else f" ({gear_key})"
+def _row_label(r):
+    return label(r["score"], r["sh"], r["ws_s"], r["winner_gear"])
+
+
+def render_hours(rows, name, gear_key, when, with_tide=False):
+    tag = "" if gear_key == "auto" else f" ({gear_key})"
     print(f"\n{name}{tag} — {when}\n")
     headers = [("Hora", 6), ("Swell", 18), ("Vento", 14)]
     if with_tide:
         headers.append(("Maré", 12))
+    if gear_key == "auto":
+        headers.append(("Prancha", 12))
     headers.append(("Score", 6))
     line = "".join(f"{h:<{w}}" for h, w in headers)
     print(line)
@@ -28,7 +34,9 @@ def render_hours(rows, name, gear_key, when, gear, with_tide=False):
                 f"{vento:<14}"]
         if with_tide:
             cols.append(f"{_tide_str(r):<12}")
-        cols.append(f"{r['score']:.1f} {label(r['score'], r['sh'], r['ws_s'], gear)}")
+        if gear_key == "auto":
+            cols.append(f"{r['winner']:<12}")
+        cols.append(f"{r['score']:.1f} {_row_label(r)}")
         print("".join(cols))
 
 
@@ -47,7 +55,7 @@ def find_best_window(rows, min_hours=2, min_score=7):
     return best
 
 
-def render_summary(rows, gear):
+def render_summary(rows):
     print()
     best = find_best_window(rows)
     if best:
@@ -56,20 +64,25 @@ def render_summary(rows, gear):
         print(f"Melhor janela: {a}–{b} 🟢")
     else:
         print("Sem janela decente.")
-    if any(r["sh"] > gear["danger_h"] and r["ws_s"] < 5 for r in rows):
-        print(f"⚠️  Atenção: horas com onda > {gear['danger_h']}m e vento ruim — risco real.")
+    if any(r["sh"] > r["winner_gear"]["danger_h"] and r["ws_s"] < 5 for r in rows):
+        print("⚠️  Atenção: horas perigosas (onda grande + vento ruim) na janela.")
 
 
-def render_multiday(rows, name, gear_key, days, gear):
+def render_multiday(rows, name, gear_key, days):
     """Daily summary: best hour per day for the next N days."""
     by_day = defaultdict(list)
     for r in rows:
         by_day[r["dt"].strftime("%Y-%m-%d")].append(r)
 
-    tag = "" if gear_key == "all" else f" ({gear_key})"
+    tag = "" if gear_key == "auto" else f" ({gear_key})"
     print(f"\n{name}{tag} — próximos {days} dias\n")
-    print(f"{'Data':<12}{'Pico':<6}{'Janela':<11}{'Swell':<18}{'Vento':<14}{'Score':<6}")
-    print("─" * 67)
+    cols = [("Data", 12), ("Pico", 6), ("Janela", 11),
+            ("Swell", 18), ("Vento", 14)]
+    if gear_key == "auto":
+        cols.append(("Prancha", 12))
+    cols.append(("Score", 6))
+    print("".join(f"{h:<{w}}" for h, w in cols))
+    print("─" * sum(w for _, w in cols))
     for date_str in sorted(by_day)[:days]:
         day_rows = by_day[date_str]
         best = max(day_rows, key=lambda r: r["score"])
@@ -81,9 +94,13 @@ def render_multiday(rows, name, gear_key, days, gear):
         peak = best["dt"].strftime("%Hh")
         swell = f"{best['sh']:.1f}m {best['sp']:.0f}s {best['sd']}"
         vento = f"{best['wd']} {best['ws']:.0f}km/h"
-        lbl = label(best["score"], best["sh"], best["ws_s"], gear)
-        print(f"{date_str:<12}{peak:<6}{window:<11}{swell:<18}{vento:<14}"
-              f"{best['score']:.1f} {lbl}")
+        lbl = _row_label(best)
+        parts = [f"{date_str:<12}", f"{peak:<6}", f"{window:<11}",
+                 f"{swell:<18}", f"{vento:<14}"]
+        if gear_key == "auto":
+            parts.append(f"{best['winner']:<12}")
+        parts.append(f"{best['score']:.1f} {lbl}")
+        print("".join(parts))
 
 
 def render_history(sessions):

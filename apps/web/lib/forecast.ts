@@ -82,7 +82,7 @@ const FORECAST_NAMESPACE = "forecast";
 export async function getForecast(
   slug: string,
   date: string,
-  gear: GearKey = "all",
+  gear: GearKey = "auto",
 ): Promise<Forecast> {
   const spot = getSpot(slug);
   if (!spot) throw new Error(`unknown spot: ${slug}`);
@@ -131,7 +131,7 @@ function isRedisMisconfigured(err: unknown): boolean {
 export async function fetchRawForecast(
   spot: Spot,
   date: string,
-  gear: GearKey = "all",
+  gear: GearKey = "auto",
 ): Promise<RawForecast> {
   const payload = {
     slug: spot.slug,

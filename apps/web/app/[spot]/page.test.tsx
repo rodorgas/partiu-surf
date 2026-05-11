@@ -49,16 +49,31 @@ describe("<SpotPage />", () => {
     const SpotPage = mod.default;
     await SpotPage({
       params: Promise.resolve({ spot: "itamambuca" }),
+      searchParams: Promise.resolve({ gear: "bodyboard" }),
+    });
+    expect(getForecastMock).toHaveBeenCalledWith(
+      "itamambuca",
+      expect.any(String),
+      "bodyboard",
+    );
+  });
+
+  it("maps legacy ?gear= keys to their canonical names", async () => {
+    getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
+    const mod = await import("./page");
+    const SpotPage = mod.default;
+    await SpotPage({
+      params: Promise.resolve({ spot: "itamambuca" }),
       searchParams: Promise.resolve({ gear: "bb" }),
     });
     expect(getForecastMock).toHaveBeenCalledWith(
       "itamambuca",
       expect.any(String),
-      "bb",
+      "bodyboard",
     );
   });
 
-  it("falls back to 'all' when ?gear= is unknown", async () => {
+  it("falls back to 'auto' when ?gear= is unknown", async () => {
     getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
     const mod = await import("./page");
     const SpotPage = mod.default;
@@ -69,7 +84,7 @@ describe("<SpotPage />", () => {
     expect(getForecastMock).toHaveBeenCalledWith(
       "itamambuca",
       expect.any(String),
-      "all",
+      "auto",
     );
   });
 
@@ -86,7 +101,7 @@ describe("<SpotPage />", () => {
     expect(getForecastMock).toHaveBeenCalledWith(
       "itamambuca",
       future,
-      "all",
+      "auto",
     );
   });
 
@@ -103,7 +118,7 @@ describe("<SpotPage />", () => {
     expect(getForecastMock).toHaveBeenCalledWith(
       "itamambuca",
       today,
-      "all",
+      "auto",
     );
   });
 

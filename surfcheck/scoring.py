@@ -77,6 +77,25 @@ def compute(sh, sp, sd_deg, ws, wd_deg, wg, spot, gear, tide_score=None):
     return max(0.0, weighted / 10), sw_s
 
 
+def compute_best(sh, sp, sd_deg, ws, wd_deg, wg, spot, gear_profiles, tide_score=None):
+    """Pick the gear profile that maximizes the composite score.
+
+    Iterates `gear_profiles` (dict of key → gear) in insertion order so ties
+    resolve to the first profile listed (caller controls ordering via
+    config.GEAR_ORDER). Returns (best_score, wind_subscore, winning_key).
+    """
+    best_score = -1.0
+    best_ws = 0.0
+    best_key = None
+    for key, gear in gear_profiles.items():
+        score, ws_s = compute(sh, sp, sd_deg, ws, wd_deg, wg, spot, gear, tide_score)
+        if score > best_score:
+            best_score = score
+            best_ws = ws_s
+            best_key = key
+    return best_score, best_ws, best_key
+
+
 def label(score, height, wind_s, gear):
     """Visual label: ⚠️ danger, 💤 flat, 🟢/🟡/🔴 by score."""
     if height > gear["danger_h"] and wind_s < 5:

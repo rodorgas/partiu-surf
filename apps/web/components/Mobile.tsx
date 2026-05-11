@@ -16,6 +16,7 @@ import {
 } from "@/components/mobile/Shared";
 import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
+import { ScoreMethodology } from "@/components/ScoreMethodology";
 import type { GearKey } from "@/lib/forecast-shared";
 import { todayISO } from "@/lib/date";
 
@@ -57,6 +58,7 @@ function Body({
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />
       <HourList rows={data.hours} max={8} />
+      <ScoreMethodology variant="mobile" />
       <div style={{ height: 240 }} />
     </>
   );
@@ -701,7 +703,7 @@ function ComposerDark({
 export function Mobile({
   data,
   spot,
-  gear = "all",
+  gear = "auto",
   date,
   today,
 }: {

@@ -8,11 +8,37 @@
 
 import { diffDaysISO, isValidISODate, todayISO } from "./date";
 
-export type GearKey = "all" | "bb" | "short" | "trekkinho";
-const VALID_GEAR: readonly GearKey[] = ["all", "bb", "short", "trekkinho"];
+export type GearKey =
+  | "auto"
+  | "bodyboard"
+  | "longboard"
+  | "funboard"
+  | "shortboard";
+
+const VALID_GEAR: readonly GearKey[] = [
+  "auto",
+  "bodyboard",
+  "longboard",
+  "funboard",
+  "shortboard",
+];
+
+// Pre-2026-05 keys still in the wild on bookmarked URLs. Keep accepting them
+// so existing links resolve cleanly; canonical names are the new ones.
+// trekkinho/fish collapse into shortboard — see surfcheck/config.py for why.
+const LEGACY_GEAR_ALIASES: Record<string, GearKey> = {
+  all: "auto",
+  bb: "bodyboard",
+  short: "shortboard",
+  trekkinho: "shortboard",
+  fish: "shortboard",
+};
 
 export function normalizeGear(input: string | undefined | null): GearKey {
-  return VALID_GEAR.includes(input as GearKey) ? (input as GearKey) : "all";
+  if (!input) return "auto";
+  const aliased = LEGACY_GEAR_ALIASES[input];
+  if (aliased) return aliased;
+  return VALID_GEAR.includes(input as GearKey) ? (input as GearKey) : "auto";
 }
 
 /**
@@ -39,7 +65,7 @@ export function normalizeDate(
 }
 
 /**
- * Canonical spot URL: omits defaults (gear=all, date=today) so links round-
+ * Canonical spot URL: omits defaults (gear=auto, date=today) so links round-
  * trip cleanly to `/${slug}`. Pass `today` from the caller when you have it
  * pre-computed; otherwise it's read here.
  */
@@ -48,8 +74,8 @@ export function buildSpotUrl(
   opts: { gear?: GearKey; date?: string | null; today?: string } = {},
 ): string {
   const params = new URLSearchParams();
-  const gear = opts.gear ?? "all";
-  if (gear !== "all") params.set("gear", gear);
+  const gear = opts.gear ?? "auto";
+  if (gear !== "auto") params.set("gear", gear);
   const today = opts.today ?? todayISO();
   if (opts.date && opts.date !== today) params.set("date", opts.date);
   const qs = params.toString();
