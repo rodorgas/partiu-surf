@@ -15,6 +15,7 @@ import {
   SuggestionPill,
 } from "@/components/mobile/Shared";
 import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
+import { Markdown } from "@/components/Markdown";
 import type { GearKey } from "@/lib/forecast-shared";
 import { todayISO } from "@/lib/date";
 
@@ -295,11 +296,13 @@ function HalfContents({ chat }: { chat: ChatProps }) {
           <BotBubble typing />
         ) : chat.status === "streaming" && chat.streaming ? (
           <BotBubble>
-            <span data-testid="chat-streaming">{chat.streaming}</span>
+            <div data-testid="chat-streaming">
+              <Markdown>{chat.streaming}</Markdown>
+            </div>
           </BotBubble>
         ) : lastAssistant ? (
           <BotBubble>
-            <span style={{ whiteSpace: "pre-wrap" }}>{lastAssistant.content}</span>
+            <Markdown>{lastAssistant.content}</Markdown>
           </BotBubble>
         ) : null}
 
@@ -367,7 +370,7 @@ function FullContents({ onClose, chat }: { onClose: () => void; chat: ChatProps 
         {chat.history.map((turn, i) =>
           turn.role === "assistant" ? (
             <BotBubble key={i} dark>
-              <span style={{ whiteSpace: "pre-wrap" }}>{turn.content}</span>
+              <Markdown variant="dark">{turn.content}</Markdown>
             </BotBubble>
           ) : (
             <UserBubble key={i} dark>
@@ -380,7 +383,9 @@ function FullContents({ onClose, chat }: { onClose: () => void; chat: ChatProps 
 
         {chat.status === "streaming" && chat.streaming && (
           <BotBubble dark>
-            <span data-testid="chat-streaming-full">{chat.streaming}</span>
+            <div data-testid="chat-streaming-full">
+              <Markdown variant="dark">{chat.streaming}</Markdown>
+            </div>
           </BotBubble>
         )}
 

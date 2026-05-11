@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Forecast } from "@/lib/data";
 import { dirLabel } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
+import { Markdown } from "@/components/Markdown";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
 import { dateKicker, formatDateLong, forecastDates, todayISO } from "@/lib/date";
@@ -145,7 +146,6 @@ function ChatBubble({
         fontSize: 13.5,
         lineHeight: 1.55,
         color: C.ink,
-        whiteSpace: "pre-wrap",
       }}
     >
       {children}
@@ -300,7 +300,11 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
       >
         {history.map((turn, i) => (
           <ChatBubble key={i} role={turn.role}>
-            {turn.content}
+            {turn.role === "assistant" ? (
+              <Markdown>{turn.content}</Markdown>
+            ) : (
+              turn.content
+            )}
           </ChatBubble>
         ))}
 
@@ -312,7 +316,9 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
 
         {status === "streaming" && streaming && (
           <ChatBubble role="assistant">
-            <span data-testid="chat-streaming">{streaming}</span>
+            <div data-testid="chat-streaming">
+              <Markdown>{streaming}</Markdown>
+            </div>
           </ChatBubble>
         )}
 
