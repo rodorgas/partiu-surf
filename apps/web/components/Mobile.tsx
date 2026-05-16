@@ -5,6 +5,7 @@
 // (covers all but a slice of dashboard).
 
 import { useCallback, useRef, useState } from "react";
+import { ChevronsUp, Send, Sparkles, X } from "lucide-react";
 import type { Forecast } from "@/lib/data";
 import {
   C,
@@ -57,7 +58,7 @@ function Body({
       <div style={{ height: 12 }} />
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />
-      <HourList rows={data.hours} max={8} />
+      <HourList rows={data.hours} />
       <ScoreMethodology variant="mobile" />
       <div style={{ height: 240 }} />
     </>
@@ -230,15 +231,25 @@ function PeekContents({ data, chat }: { data: Forecast; chat: ChatProps }) {
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 14,
           }}
         >
-          ✦
+          <Sparkles size={14} />
         </span>
         <span style={{ fontSize: 13, color: C.ink, fontWeight: 600 }}>
           Pergunta pro copiloto
         </span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: C.inkSoft }}>↑ arraste</span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 11,
+            color: C.inkSoft,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <ChevronsUp size={12} /> arraste
+        </span>
       </div>
       <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
         {sugg.map((s, i) => (
@@ -341,15 +352,16 @@ function FullContents({ onClose, chat }: { onClose: () => void; chat: ChatProps 
           aria-label="fechar"
           style={{
             marginLeft: "auto",
-            fontSize: 14,
             color: "rgba(255,255,255,0.6)",
             background: "transparent",
             border: "none",
             cursor: "pointer",
             padding: "4px 8px",
+            display: "inline-flex",
+            alignItems: "center",
           }}
         >
-          ×
+          <X size={16} />
         </button>
       </div>
       <div
@@ -619,10 +631,9 @@ function Composer({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 14,
           }}
         >
-          ↑
+          <Send size={14} />
         </button>
       </div>
     </form>
@@ -690,10 +701,9 @@ function ComposerDark({
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 14,
           }}
         >
-          ↑
+          <Send size={14} />
         </button>
       </div>
     </form>

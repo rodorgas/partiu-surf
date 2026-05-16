@@ -54,6 +54,7 @@ export type Forecast = {
 };
 
 const hours: ForecastHour[] = [
+  { h: "05h", score: 5.6, swH: 1.4, swT: 11, swDir: 173, wKmh: 9, wDir: 225, gust: 15, tideH: 1.5, tide: "subindo", flag: "" },
   { h: "06h", score: 6.4, swH: 1.4, swT: 11, swDir: 175, wKmh: 8, wDir: 230, gust: 14, tideH: 1.6, tide: "subindo", flag: "" },
   { h: "07h", score: 7.8, swH: 1.5, swT: 12, swDir: 180, wKmh: 7, wDir: 235, gust: 12, tideH: 1.8, tide: "subindo", flag: "" },
   { h: "08h", score: 8.6, swH: 1.6, swT: 12, swDir: 182, wKmh: 6, wDir: 240, gust: 10, tideH: 2.0, tide: "subindo", flag: "" },
@@ -130,3 +131,11 @@ const COMPASS = [
 
 export const dirLabel = (deg: number): string =>
   COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+
+const BREAK_TYPE_PT: Record<string, string> = {
+  beach: "praia",
+  point: "point",
+  reef: "recife",
+};
+
+export const breakTypeLabel = (bt: string): string => BREAK_TYPE_PT[bt] ?? bt;
