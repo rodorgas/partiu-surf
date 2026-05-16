@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Forecast, ForecastHour } from "@/lib/data";
 import { dirLabel } from "@/lib/data";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
@@ -295,12 +296,13 @@ function MobileSpotPicker({
               data-testid="mobile-spot-picker-search"
               style={{
                 flex: 1,
-                fontSize: 12.5,
+                // 16px to prevent iOS Safari auto-zoom on focus.
+                fontSize: 16,
                 color: C.ink,
                 background: "transparent",
                 border: "none",
                 outline: "none",
-                padding: "2px 0",
+                padding: 0,
               }}
             />
             {query && (
@@ -728,21 +730,30 @@ function MobileGearPicker({
   today: string;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  // Portal-positioned menu: FilterChips parent uses overflowX:auto, which
+  // clips position:absolute children on both axes. Use a portal + fixed
+  // coords computed from the button rect so the popover escapes the clip.
+  const pos = usePopoverPosition(open, buttonRef, "right");
   const label = GEAR_LABELS[gear];
 
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (buttonRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
   return (
-    <div ref={rootRef} style={{ position: "relative" }}>
+    <div style={{ position: "relative" }}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -771,49 +782,53 @@ function MobileGearPicker({
           {open ? "▴" : "▾"}
         </span>
       </button>
-      {open && (
-        <ul
-          role="listbox"
-          data-testid="mobile-gear-picker-menu"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            right: 0,
-            minWidth: 160,
-            background: C.surface,
-            borderRadius: 12,
-            boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
-            padding: 4,
-            listStyle: "none",
-            margin: 0,
-            zIndex: 5,
-          }}
-        >
-          {GEAR_ORDER.map((g) => {
-            const isCurrent = g === gear;
-            return (
-              <li key={g}>
-                <Link
-                  href={buildSpotUrl(spot, { gear: g, date, today })}
-                  scroll={false}
-                  style={{
-                    display: "block",
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    background: isCurrent ? C.foam : "transparent",
-                    color: C.ink,
-                    textDecoration: "none",
-                    fontSize: 13,
-                    fontWeight: isCurrent ? 600 : 500,
-                  }}
-                >
-                  {GEAR_LABELS[g]}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      {open &&
+        pos &&
+        createPortal(
+          <ul
+            ref={menuRef}
+            role="listbox"
+            data-testid="mobile-gear-picker-menu"
+            style={{
+              position: "fixed",
+              top: pos.top,
+              right: pos.right,
+              minWidth: 160,
+              background: C.surface,
+              borderRadius: 12,
+              boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
+              padding: 4,
+              listStyle: "none",
+              margin: 0,
+              zIndex: 50,
+            }}
+          >
+            {GEAR_ORDER.map((g) => {
+              const isCurrent = g === gear;
+              return (
+                <li key={g}>
+                  <Link
+                    href={buildSpotUrl(spot, { gear: g, date, today })}
+                    scroll={false}
+                    style={{
+                      display: "block",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: isCurrent ? C.foam : "transparent",
+                      color: C.ink,
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: isCurrent ? 600 : 500,
+                    }}
+                  >
+                    {GEAR_LABELS[g]}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -830,7 +845,10 @@ function MobileDatePicker({
   today: string;
 }) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+  // Portal-positioned: see MobileGearPicker for why.
+  const pos = usePopoverPosition(open, buttonRef, "left");
   const days = forecastDates(today, FORECAST_DAY_COUNT);
   const kicker = dateKicker(date, today);
   const buttonLabel = kicker ?? formatDateLong(date);
@@ -838,15 +856,19 @@ function MobileDatePicker({
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+      const t = e.target as Node;
+      if (buttonRef.current?.contains(t)) return;
+      if (menuRef.current?.contains(t)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", onDocClick);
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
   return (
-    <div ref={rootRef} style={{ position: "relative" }}>
+    <div style={{ position: "relative" }}>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -875,59 +897,100 @@ function MobileDatePicker({
           {open ? "▴" : "▾"}
         </span>
       </button>
-      {open && (
-        <ul
-          role="listbox"
-          data-testid="mobile-date-picker-menu"
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            minWidth: 200,
-            background: C.surface,
-            borderRadius: 12,
-            boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
-            padding: 4,
-            listStyle: "none",
-            margin: 0,
-            zIndex: 5,
-          }}
-        >
-          {days.map((iso) => {
-            const isCurrent = iso === date;
-            const itemKicker = dateKicker(iso, today);
-            return (
-              <li key={iso}>
-                <Link
-                  href={buildSpotUrl(spot, { gear, date: iso, today })}
-                  scroll={false}
-                  style={{
-                    display: "flex",
-                    alignItems: "baseline",
-                    gap: 6,
-                    padding: "8px 10px",
-                    borderRadius: 8,
-                    background: isCurrent ? C.foam : "transparent",
-                    color: C.ink,
-                    textDecoration: "none",
-                    fontSize: 13,
-                    fontWeight: isCurrent ? 600 : 500,
-                  }}
-                >
-                  {itemKicker && (
-                    <span style={{ color: C.deep, fontWeight: 600 }}>
-                      {itemKicker}
+      {open &&
+        pos &&
+        createPortal(
+          <ul
+            ref={menuRef}
+            role="listbox"
+            data-testid="mobile-date-picker-menu"
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              minWidth: 200,
+              background: C.surface,
+              borderRadius: 12,
+              boxShadow: `0 1px 0 ${C.rule}, 0 14px 30px rgba(10,58,68,0.18)`,
+              padding: 4,
+              listStyle: "none",
+              margin: 0,
+              zIndex: 50,
+            }}
+          >
+            {days.map((iso) => {
+              const isCurrent = iso === date;
+              const itemKicker = dateKicker(iso, today);
+              return (
+                <li key={iso}>
+                  <Link
+                    href={buildSpotUrl(spot, { gear, date: iso, today })}
+                    scroll={false}
+                    style={{
+                      display: "flex",
+                      alignItems: "baseline",
+                      gap: 6,
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      background: isCurrent ? C.foam : "transparent",
+                      color: C.ink,
+                      textDecoration: "none",
+                      fontSize: 13,
+                      fontWeight: isCurrent ? 600 : 500,
+                    }}
+                  >
+                    {itemKicker && (
+                      <span style={{ color: C.deep, fontWeight: 600 }}>
+                        {itemKicker}
+                      </span>
+                    )}
+                    <span style={{ color: C.inkDim }}>
+                      {formatDateLong(iso)}
                     </span>
-                  )}
-                  <span style={{ color: C.inkDim }}>{formatDateLong(iso)}</span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>,
+          document.body,
+        )}
     </div>
   );
+}
+
+type PopoverPos = { top: number; left?: number; right?: number };
+/**
+ * Compute fixed-position coords for a popover anchored under a button.
+ * Used to escape parent `overflowX: auto` clipping on the mobile filter row.
+ * Recomputes on open + viewport resize; popover closes on outside click so
+ * we don't bother tracking scroll.
+ */
+function usePopoverPosition(
+  open: boolean,
+  buttonRef: React.RefObject<HTMLButtonElement | null>,
+  anchor: "left" | "right",
+): PopoverPos | null {
+  const [pos, setPos] = useState<PopoverPos | null>(null);
+  useEffect(() => {
+    if (!open) {
+      setPos(null);
+      return;
+    }
+    const recompute = () => {
+      const el = buttonRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (anchor === "right") {
+        setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+      } else {
+        setPos({ top: r.bottom + 6, left: r.left });
+      }
+    };
+    recompute();
+    window.addEventListener("resize", recompute);
+    return () => window.removeEventListener("resize", recompute);
+  }, [open, anchor, buttonRef]);
+  return pos;
 }
 
 export function FilterChips({
