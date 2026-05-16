@@ -1300,7 +1300,7 @@ function HourTable({ data }: { data: Forecast }) {
         >
           Hora a hora
         </h2>
-        <span style={{ fontSize: 12.5, color: C.inkDim }}>06h–18h · janela diurna</span>
+        <span style={{ fontSize: 12.5, color: C.inkDim }}>05h–18h · janela diurna</span>
       </div>
       <div
         style={{

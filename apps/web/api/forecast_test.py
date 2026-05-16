@@ -70,8 +70,8 @@ class ForecastFunctionTests(unittest.TestCase):
             out = fc.build_forecast(SPOT_PARAMS)
         self.assertEqual(out["spot"]["slug"], "itamambuca")
         self.assertEqual(out["hasTide"], False)
-        # Daylight slice = 06h..18h inclusive = 13 hours.
-        self.assertEqual(len(out["hours"]), 13)
+        # Daylight slice = 05h..18h inclusive = 14 hours.
+        self.assertEqual(len(out["hours"]), 14)
         for r in out["hours"]:
             self.assertIn("score", r)
             self.assertGreaterEqual(r["score"], 0)
@@ -90,7 +90,7 @@ class ForecastFunctionTests(unittest.TestCase):
         score, _, _ = compute_best(
             1.5, 11.0, 185.0, 10.0, 240.0, 18.0, spot_tuple, GEAR, None,
         )
-        # Match the first daylight hour (06h) — homogeneous inputs make every
+        # Match the first daylight hour (05h) — homogeneous inputs make every
         # hour identical, but we still pin to the first one.
         self.assertAlmostEqual(out["hours"][0]["score"], round(score, 2), places=2)
 

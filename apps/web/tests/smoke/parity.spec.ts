@@ -54,7 +54,7 @@ test("scores match python -m surfcheck (±0.1) for arpoador on a fixed date", as
     hours: { h: string; score: number }[];
   };
 
-  // Compare overlapping hours only — CLI shows all 24h, /api shows daylight 06-18.
+  // Compare overlapping hours only — CLI shows all 24h, /api shows daylight 05-18.
   let compared = 0;
   for (const r of apiPayload.hours) {
     const cliScore = cliScores[r.h];

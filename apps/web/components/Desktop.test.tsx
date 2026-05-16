@@ -11,9 +11,9 @@ describe("<Desktop />", () => {
     expect(screen.getAllByText("8.9").length).toBeGreaterThan(0);
   });
 
-  it("renders 13 hourly rows in the table", () => {
+  it("renders 14 hourly rows in the table", () => {
     const { container } = render(<Desktop data={MOCK_FORECAST} spot="itamambuca" />);
-    // Each row has a label like "06h", "07h", ... "18h".
+    // Each row has a label like "05h", "06h", ... "18h".
     for (const r of MOCK_FORECAST.hours) {
       expect(container.textContent).toContain(r.h);
     }
