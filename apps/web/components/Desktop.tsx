@@ -1765,10 +1765,11 @@ function Hist() {
 function SideCards({ data }: { data: Forecast }) {
   return (
     <div
+      className="surf-side-cards"
       style={{
         padding: "14px 28px 32px",
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gridTemplateColumns: "1fr 1.1fr 1fr",
         gap: 16,
       }}
     >
