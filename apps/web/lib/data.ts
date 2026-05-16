@@ -130,3 +130,11 @@ const COMPASS = [
 
 export const dirLabel = (deg: number): string =>
   COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+
+const BREAK_TYPE_PT: Record<string, string> = {
+  beach: "praia",
+  point: "point",
+  reef: "recife",
+};
+
+export const breakTypeLabel = (bt: string): string => BREAK_TYPE_PT[bt] ?? bt;
