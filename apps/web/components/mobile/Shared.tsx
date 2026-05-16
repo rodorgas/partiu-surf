@@ -646,7 +646,7 @@ export function HourList({ rows }: { rows: ForecastHour[] }) {
             fontSize: 11,
           }}
         >
-          06h → 18h
+          05h → 18h
         </span>
       </div>
       {rows.map((r, i) => {
