@@ -37,6 +37,40 @@ pnpm test:e2e     # playwright
 
 The dev server expects `ANTHROPIC_API_KEY` (chat — falls back to a canned response if unset) and Upstash env vars (`KV_REST_API_URL` / `KV_REST_API_TOKEN`) for the forecast cache.
 
-## Architecture in one paragraph
+## Architecture
+
+```
+            CLI                                    Web (Vercel)
+   python -m surfcheck                              partiu.surf
+            │                                            │
+            │                                  ┌─────────▼─────────┐
+            │                                  │  Next.js 16 SSR   │
+            │                                  │  lib/forecast.ts  │
+            │                                  └─┬───────────────┬─┘
+            │                                    │               │
+            │                              cache │               │ stream
+            │                                    ▼               ▼
+            │                            ┌──────────────┐  ┌──────────────┐
+            │                            │ Upstash Redis│  │ Anthropic    │
+            │                            │   12h TTL    │  │ Haiku 4.5    │
+            │                            └──────┬───────┘  │ /api/chat    │
+            │                                   │ miss     └──────────────┘
+            │                            ┌──────▼──────────┐
+            │                            │ /api/forecast   │
+            │                            │ Vercel Python   │
+            │                            └──────┬──────────┘
+            │                                   │ imports vendored
+            └─────────────────┬─────────────────┘
+                              ▼
+            ┌────────────────────────────────────────┐
+            │   surfcheck/  (canonical Python core)  │
+            │   fetch · score · geometry · tides     │
+            └───────────────┬───────────────┬────────┘
+                            ▼               ▼
+                    ┌─────────────┐  ┌──────────────┐
+                    │  Open-Meteo │  │  WorldTides  │
+                    │ marine + atm│  │  (optional)  │
+                    └─────────────┘  └──────────────┘
+```
 
 The pipeline is **fetch → align hourly rows → score → render**. Open-Meteo provides marine and atmospheric forecasts; WorldTides optionally adds tide heights. `surfcheck/scoring.py` blends three sub-scores (or four, with tide) using fixed weights that live in one place. Spots are positional tuples with a facing direction, shelter arc, and size tolerance; gear profiles are step-curves that map wave energy to a 0–10. The web app deploys the same Python scoring as a Vercel function and caches results in Upstash Redis (12h TTL, permanent for past dates).
