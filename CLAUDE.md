@@ -66,7 +66,7 @@ The `plan/` directory contains the original phased plan (scaffold → storage �
 **Python owns fetch + row alignment + scoring. TS owns caching and view-model shape.** This avoids porting `cli._build_rows` to TS and keeps the math in one place.
 
 - `api/forecast.py` — Vercel Python function (`@vercel/python@4.3.0`, 512 MB, 15s). Imports the **vendored** `surfcheck/` package from `api/_vendored/surfcheck/` and emits JSON for `(spot, date, gear)`.
-- `scripts/vendor-surfcheck.mjs` — copies repo-root `surfcheck/` → `api/_vendored/surfcheck/` on `predev`/`prebuild`. On Vercel the upload root is `apps/web/`, so the parent tree isn't visible — the script then **skips** (does not fail) and relies on the pre-vendored copy that ships via `.vercelignore`.
+- `scripts/vendor-surfcheck.mjs` — copies repo-root `surfcheck/` → `api/_vendored/surfcheck/` on `predev`/`prebuild`. The vendored copy is gitignored (never committed); it's regenerated every build. Vercel's git integration clones the whole repo and the project's `rootDirectory` is set to `apps/web`, so the parent `surfcheck/` is visible at build time and the prebuild step finds it.
 - `lib/forecast.ts` — calls `/api/forecast` (via `VERCEL_PROJECT_PRODUCTION_URL` to bypass deployment protection, falling back to `VERCEL_URL`, then `localhost:3000`), caches the result in Upstash Redis (`lib/cache.ts`), and adapts the JSON into the `Forecast` shape the UI consumes. In local dev with no running route, it `spawnSync`s the Python function directly.
 
 **Canonical scoring stays in `surfcheck/scoring.py`** — both the CLI and the web app import from it. Don't reimplement in TS without a deliberate decision to switch sources of truth.
@@ -111,6 +111,6 @@ The `_ZO_DOCTOR=0` prefix silences a zoxide warning that the CLI emits on stderr
 
 ### Deployment gotchas
 
+- Deploys go through the Vercel ↔ GitHub integration; CLI deploys aren't the supported path. The project's `rootDirectory` is set to `apps/web` so the Next.js framework detection finds `package.json` there.
 - `vercel.json` sets `excludeFiles` on `api/forecast.py` to keep the Next.js build output (`.next`, `node_modules`, `app/`, `components/`, …) out of the Python lambda bundle.
-- `.vercelignore` is the source of truth for what ships; **it deliberately does not exclude `api/_vendored/`** even though that path is gitignored, so the pre-vendored `surfcheck/` reaches the lambda.
 - Hobby plans gate the deployment-specific hostname behind Vercel Deployment Protection (401 to unauthenticated callers). Self-fetches must use `VERCEL_PROJECT_PRODUCTION_URL`, not `VERCEL_URL` — already handled in `lib/forecast.ts`.
