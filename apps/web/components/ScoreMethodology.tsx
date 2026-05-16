@@ -3,6 +3,15 @@
 // Rendered as a footer below the hour-by-hour table on both desktop and
 // mobile. Uses native <details>/<summary> for accessibility + zero-state.
 
+import {
+  Activity,
+  ChevronDown,
+  Crosshair,
+  Info,
+  Waves,
+  Wind,
+} from "lucide-react";
+
 const P = {
   surface: "#fff8e9",
   deep:    "#0a3a44",
@@ -43,7 +52,7 @@ function Row({
   weight,
   children,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   weight: string;
   children: React.ReactNode;
@@ -59,9 +68,11 @@ function Row({
     >
       <span
         style={{
-          fontSize: 16,
           color: P.teal,
           lineHeight: 1.2,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
         {icon}
@@ -134,13 +145,9 @@ export function ScoreMethodology({ variant = "desktop" }: { variant?: Variant })
             borderRadius: "50%",
             background: P.foam,
             color: P.teal,
-            fontSize: 13,
-            fontStyle: "italic",
-            fontWeight: 700,
-            fontFamily: "Georgia, serif",
           }}
         >
-          i
+          <Info size={13} />
         </span>
         <span>Como é calculado o score</span>
         <span
@@ -148,12 +155,12 @@ export function ScoreMethodology({ variant = "desktop" }: { variant?: Variant })
           className="score-methodology-chevron"
           style={{
             marginLeft: "auto",
-            fontSize: 12,
             color: P.inkSoft,
             transition: "transform .15s ease",
+            display: "inline-flex",
           }}
         >
-          ▾
+          <ChevronDown size={14} />
         </span>
       </summary>
 
@@ -171,7 +178,7 @@ export function ScoreMethodology({ variant = "desktop" }: { variant?: Variant })
           fator também vai de 0 a 10.
         </p>
 
-        <Row icon="≋" title="Potência da onda" weight="peso 50% (ou 40% com maré)">
+        <Row icon={<Waves size={16} />} title="Potência da onda" weight="peso 50% (ou 40% com maré)">
           <Mono>H × T ÷ tolerância do pico</Mono>, mapeado pela curva da prancha.
           {" "}H é altura da onda em metros, T é período em segundos.{" "}
           <b style={{ color: P.deep }}>Período conta muito</b> — 1 m × 13 s tem
@@ -180,20 +187,20 @@ export function ScoreMethodology({ variant = "desktop" }: { variant?: Variant })
           (tolerância 0.7).
         </Row>
 
-        <Row icon="⌖" title="Direção do swell" weight="peso 30%">
+        <Row icon={<Crosshair size={16} />} title="Direção do swell" weight="peso 30%">
           Quão alinhado o swell entra em relação ao <i>facing</i> do pico:{" "}
           <Mono>0–22°</Mono> = 10, <Mono>22–45°</Mono> = 7, <Mono>45–67°</Mono> = 4,
           {" "}<Mono>67–90°</Mono> = 2, <Mono>&gt; 90°</Mono> = 0.
         </Row>
 
-        <Row icon="✱" title="Vento" weight="peso 20%">
+        <Row icon={<Wind size={16} />} title="Vento" weight="peso 20%">
           Terral (offshore) puro = 10. Onshore = 1. Rajada &gt; 25 km/h aplica{" "}
           <Mono>−3</Mono> no subscore. Picos com sombra terrestre{" "}
           (<i>shelter</i>) reduzem o vento efetivo em até 0.3× quando ele vem do
           ângulo bloqueado.
         </Row>
 
-        <Row icon="◐" title="Maré" weight="peso 10% (quando há dado)">
+        <Row icon={<Activity size={16} />} title="Maré" weight="peso 10% (quando há dado)">
           Bate ou não com a preferência do pico (alta, baixa, subindo,
           descendo, <i>mid</i>). Sem chave da WorldTides, esse fator sai do
           cálculo e os pesos rebalanceiam.
