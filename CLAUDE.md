@@ -87,6 +87,12 @@ The `plan/` directory contains the original phased plan (scaffold → storage �
 - **Langfuse** (`langfuse` v3) for LLM tracing on `/api/chat`. Singleton in `lib/langfuse.ts` no-ops when keys are unset, so local runs without Langfuse env vars work unchanged. Env: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`. **Gotcha:** the SDK auto-reads `LANGFUSE_BASEURL` (no underscore); we use `LANGFUSE_BASE_URL` for readability and pass it explicitly to the constructor. Trace shape: one `chat.message` trace → one `anthropic.messages.stream` generation per request. Final-message capture (output text + token usage incl. `cache_read_input_tokens` / `cache_creation_input_tokens`) and `flushAsync()` run inside `next/server`'s `after()` so the response streams immediately and the lambda stays alive via `waitUntil` until events ship.
 - **WorldTides** (optional) for tide enrichment — same key/silent-skip behavior as the CLI.
 
+### Instrumentation / analytics
+
+- **Vercel Web Analytics** (`@vercel/analytics`) + **Speed Insights** (`@vercel/speed-insights`) — mounted in `app/layout.tsx`. Zero-config pageview + Core Web Vitals; dashboard in the Vercel project.
+- **PostHog** (`posthog-js` + `posthog-node`) — product analytics, session replay, feature flags, error tracking. Init in `instrumentation-client.ts` (Next.js 16 root-level file that runs before hydration). Server-side captures in `app/api/chat/route.ts` use `next/server`'s `after()` to flush without blocking the streaming response. `lib/posthog-server.ts` extracts the browser's `distinct_id` from the `ph_<key>_posthog` cookie so client and server events join.
+- Env: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (required to enable; both client and server read it), `NEXT_PUBLIC_POSTHOG_HOST` (optional, defaults to `https://us.i.posthog.com`). When unset, PostHog is silently disabled — same pattern as `ANTHROPIC_API_KEY` / `WORLDTIDES_API_KEY`. LLM observability stays on Langfuse, not PostHog LLM Analytics.
+
 ### Vercel account
 
 Deploys go to the **personal** account, not work:

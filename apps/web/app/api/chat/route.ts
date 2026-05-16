@@ -14,6 +14,7 @@ import { after } from "next/server";
 import { chatLimiter, clientId } from "@/lib/ratelimit";
 import { getForecast } from "@/lib/forecast";
 import { langfuse } from "@/lib/langfuse";
+import { distinctIdFromRequest, getPostHogServer } from "@/lib/posthog-server";
 import { getSpot } from "@/lib/spots";
 
 export const runtime = "nodejs";
@@ -117,9 +118,11 @@ export async function POST(req: Request) {
 
   // 3. Rate-limit gate. chatLimiter is sliding-window 10/h per clientId.
   const id = clientId(req);
+  const distinctId = distinctIdFromRequest(req, id);
   const { success, remaining, reset } = await chatLimiter.limit(id);
   if (!success) {
     const minutes = Math.max(1, Math.ceil((reset - Date.now()) / 60_000));
+    capture(distinctId, "chat_rate_limited", { spot: body.spot });
     return Response.json(
       {
         error: "rate_limited",
@@ -216,6 +219,7 @@ export async function POST(req: Request) {
       messages,
     });
 
+<<<<<<< HEAD
     if (lf) {
       // Capture usage + final text after the response has been sent. `after`
       // delegates to Vercel's waitUntil so the lambda stays alive until
@@ -260,6 +264,11 @@ export async function POST(req: Request) {
         }
       });
     }
+    capture(distinctId, "chat_message_sent", {
+      spot: body.spot,
+      message_length: body.message.length,
+      history_length: body.history.length,
+    });
 
     return new Response(stream.toReadableStream(), {
       headers: {
@@ -278,11 +287,29 @@ export async function POST(req: Request) {
         await lf.flushAsync();
       });
     }
+    capture(distinctId, "chat_failed", { spot: body.spot });
     return Response.json(
       { error: "chat_failed", message: "Não consegui processar agora, tenta de novo." },
       { status: 502 },
     );
   }
+}
+
+function capture(
+  distinctId: string,
+  event: string,
+  properties: Record<string, unknown>,
+): void {
+  const ph = getPostHogServer();
+  if (!ph) return;
+  after(async () => {
+    try {
+      ph.capture({ distinctId, event, properties });
+      await ph.flush();
+    } catch (err) {
+      console.error("posthog: capture failed", err);
+    }
+  });
 }
 
 /**
