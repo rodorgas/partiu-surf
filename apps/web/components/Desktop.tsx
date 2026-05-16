@@ -214,6 +214,7 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
 
   return (
     <aside
+      className="surf-chat-panel"
       style={{
         width: 360,
         flex: "0 0 360px",
@@ -1236,8 +1237,11 @@ function Hero({ data }: { data: Forecast }) {
             pointerEvents: "none",
           }}
         />
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 24, position: "relative" }}>
-          <div style={{ flex: "1 1 auto" }}>
+        <div
+          className="surf-hero-row"
+          style={{ display: "flex", alignItems: "flex-start", gap: 24, position: "relative" }}
+        >
+          <div className="surf-hero-text" style={{ flex: "1 1 auto", minWidth: 0 }}>
             <div
               style={{
                 fontSize: 11.5,
@@ -1276,7 +1280,9 @@ function Hero({ data }: { data: Forecast }) {
             </div>
           </div>
 
-          <ScoreWedge score={data.spot.todayPeak} />
+          <div className="surf-hero-wedge">
+            <ScoreWedge score={data.spot.todayPeak} />
+          </div>
         </div>
       </div>
     </div>
@@ -1303,13 +1309,14 @@ function HourTable({ data }: { data: Forecast }) {
         <span style={{ fontSize: 12.5, color: C.inkDim }}>06h–18h · janela diurna</span>
       </div>
       <div
+        className="surf-hour-scroll"
         style={{
           background: C.surface,
           borderRadius: 18,
-          overflow: "hidden",
           boxShadow: `0 1px 0 ${C.rule}`,
         }}
       >
+        <div style={{ minWidth: 820 }}>
         <div
           style={{
             display: "grid",
@@ -1426,6 +1433,7 @@ function HourTable({ data }: { data: Forecast }) {
             </div>
           );
         })}
+        </div>
       </div>
       <ScoreMethodology variant="desktop" />
     </div>
@@ -1760,7 +1768,7 @@ function SideCards({ data }: { data: Forecast }) {
       style={{
         padding: "14px 28px 32px",
         display: "grid",
-        gridTemplateColumns: "1fr 1.1fr 1fr",
+        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
         gap: 16,
       }}
     >
@@ -1804,7 +1812,7 @@ export function Desktop({
       }}
     >
       <ChatPanel data={data} spot={spot} />
-      <main style={{ flex: "1 1 auto", overflow: "auto" }}>
+      <main className="surf-desktop-main" style={{ flex: "1 1 auto", overflow: "auto" }}>
         <TopBar spot={spot} gear={gear} date={d} today={t} />
         <Hero data={data} />
         <SideCards data={data} />

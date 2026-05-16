@@ -44,3 +44,19 @@ input, textarea {
   .layout-desktop { display: none; }
   .layout-mobile  { display: block; }
 }
+
+/* Desktop layout responsive bands — keep <main> shrinkable inside the flex
+   row and let the wide hour-table scroll horizontally inside its own card
+   instead of blowing out the page. */
+.surf-desktop-main { min-width: 0; }
+.surf-hour-scroll  { overflow-x: auto; }
+
+@media (max-width: 1100px) and (min-width: 769px) {
+  .surf-chat-panel { width: 320px !important; flex-basis: 320px !important; }
+  .surf-hero-row   { flex-wrap: wrap !important; }
+  .surf-hero-text  { flex-basis: 100% !important; min-width: 0 !important; }
+  .surf-hero-wedge { margin-left: auto !important; margin-right: auto !important; }
+}
+@media (max-width: 900px) and (min-width: 769px) {
+  .surf-chat-panel { width: 280px !important; flex-basis: 280px !important; }
+}
