@@ -41,6 +41,24 @@ vi.mock("@/lib/ratelimit", () => ({
     req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "anon",
 }));
 
+// Stub the Langfuse singleton — the real client tries to ship events on a
+// background timer which leaks across tests. Returning null exercises the
+// no-op branch in the route handler.
+vi.mock("@/lib/langfuse", () => ({
+  langfuse: () => null,
+}));
+
+// Stub next/server `after`: Vitest's environment doesn't provide a request
+// context, so the real implementation throws. We just invoke the callback
+// synchronously here — the route's after() block is exercised by the
+// langfuse-enabled path which is null-stubbed above, so this is effectively
+// inert in unit tests but keeps the import resolvable.
+vi.mock("next/server", () => ({
+  after: (cb: () => unknown | Promise<unknown>) => {
+    void cb();
+  },
+}));
+
 // Stub getForecast so we don't hit Open-Meteo or spawn Python.
 vi.mock("@/lib/forecast", () => ({
   getForecast: vi.fn(async (slug: string, date: string) => ({

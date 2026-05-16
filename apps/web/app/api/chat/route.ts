@@ -10,8 +10,10 @@
 // a canned streaming response so the rest of the UI works without a key.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { after } from "next/server";
 import { chatLimiter, clientId } from "@/lib/ratelimit";
 import { getForecast } from "@/lib/forecast";
+import { langfuse } from "@/lib/langfuse";
 import { getSpot } from "@/lib/spots";
 
 export const runtime = "nodejs";
@@ -176,10 +178,28 @@ export async function POST(req: Request) {
   // 7. Real Anthropic call. The SDK reads ANTHROPIC_API_KEY from env.
   const client = new Anthropic();
 
+  const model = "claude-haiku-4-5-20251001";
+  const maxTokens = 600;
+
+  // Open a Langfuse trace + generation. No-op when keys are absent.
+  const lf = langfuse();
+  const trace = lf?.trace({
+    name: "chat.message",
+    userId: id,
+    input: { spot: body.spot, message: body.message, historyLength: body.history.length },
+    metadata: { spot: body.spot, date: today },
+  });
+  const generation = trace?.generation({
+    name: "anthropic.messages.stream",
+    model,
+    modelParameters: { max_tokens: maxTokens },
+    input: messages,
+  });
+
   try {
     const stream = client.messages.stream({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 600,
+      model,
+      max_tokens: maxTokens,
       system: [
         {
           type: "text",
@@ -196,6 +216,51 @@ export async function POST(req: Request) {
       messages,
     });
 
+    if (lf) {
+      // Capture usage + final text after the response has been sent. `after`
+      // delegates to Vercel's waitUntil so the lambda stays alive until
+      // flushAsync completes.
+      after(async () => {
+        try {
+          const final = await stream.finalMessage();
+          const usage = final.usage;
+          const inputTokens = usage.input_tokens ?? 0;
+          const outputTokens = usage.output_tokens ?? 0;
+          const cacheRead = usage.cache_read_input_tokens ?? 0;
+          const cacheCreate = usage.cache_creation_input_tokens ?? 0;
+          const outputText = final.content
+            .filter((b): b is Anthropic.TextBlock => b.type === "text")
+            .map((b) => b.text)
+            .join("");
+          generation?.end({
+            output: outputText,
+            usage: {
+              input: inputTokens,
+              output: outputTokens,
+              total: inputTokens + outputTokens + cacheRead + cacheCreate,
+            },
+            usageDetails: {
+              input: inputTokens,
+              output: outputTokens,
+              cache_read_input_tokens: cacheRead,
+              cache_creation_input_tokens: cacheCreate,
+            },
+          });
+          trace?.update({ output: outputText });
+        } catch (err) {
+          console.error("langfuse: stream observation failed", err);
+          generation?.end({
+            level: "ERROR",
+            statusMessage: err instanceof Error ? err.message : String(err),
+          });
+        } finally {
+          // flushAsync ships pending events without tearing down the client
+          // — the module-level singleton is reused across warm invocations.
+          await lf.flushAsync();
+        }
+      });
+    }
+
     return new Response(stream.toReadableStream(), {
       headers: {
         "Content-Type": "text/event-stream",
@@ -204,6 +269,15 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("chat: anthropic call failed", err);
+    if (lf) {
+      generation?.end({
+        level: "ERROR",
+        statusMessage: err instanceof Error ? err.message : String(err),
+      });
+      after(async () => {
+        await lf.flushAsync();
+      });
+    }
     return Response.json(
       { error: "chat_failed", message: "Não consegui processar agora, tenta de novo." },
       { status: 502 },
