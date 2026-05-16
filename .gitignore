@@ -40,3 +40,11 @@ playwright-report/
 test-results/
 .vercel
 .vercel-token
+
+# Claude Code — ignore local config (settings.json, etc) but keep
+# shared project skills / agents / commands / hooks.
+.claude/*
+!.claude/skills/
+!.claude/agents/
+!.claude/commands/
+!.claude/hooks/
