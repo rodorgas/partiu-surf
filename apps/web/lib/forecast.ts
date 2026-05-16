@@ -172,9 +172,17 @@ export async function fetchRawForecast(
 }
 
 function forecastEndpoint(payload: Record<string, unknown>): string {
+  // VERCEL_URL points to the deployment-specific hostname, which is gated by
+  // Vercel's "Deployment Protection" on hobby projects (401 to anyone without
+  // a Vercel session). Self-fetch from the runtime SSR pass blows up there.
+  // VERCEL_PROJECT_PRODUCTION_URL is the public production alias and is what
+  // we want; fall back to VERCEL_URL only when the production alias isn't set
+  // (e.g. preview deploys without protection disabled).
+  const host =
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
   const base =
     process.env.NEXT_PUBLIC_BASE_URL ??
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    (host ? `https://${host}` : "http://localhost:3000");
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(payload)) {
     if (v === undefined || v === null) continue;

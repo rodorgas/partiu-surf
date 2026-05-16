@@ -1,0 +1,24 @@
+# .vercelignore overrides .gitignore for Vercel uploads.
+# We need api/_vendored/ to ship (gitignored, populated by prebuild),
+# so this file lists excludes explicitly without that path.
+
+node_modules
+.next
+.env*
+test-results
+*.tsbuildinfo
+playwright-report
+coverage
+.DS_Store
+
+# Don't ship local Python test/cache files as serverless functions.
+api/forecast_test.py
+api/__pycache__
+**/__pycache__
+*.pyc
+
+# Tests + local-only scripts
+tests
+playwright.config.ts
+vitest.config.ts
+vitest.setup.ts

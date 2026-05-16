@@ -12,8 +12,11 @@ const src = resolve(here, "..", "..", "..", "surfcheck");
 const dest = resolve(here, "..", "api", "_vendored", "surfcheck");
 
 if (!existsSync(src)) {
-  console.error(`vendor-surfcheck: source not found at ${src}`);
-  process.exit(1);
+  // On Vercel the deploy upload is rooted at apps/web/, so the parent
+  // surfcheck/ tree isn't visible. We assume _vendored/ was pre-populated
+  // locally and shipped via .vercelignore, and skip rather than fail.
+  console.warn(`vendor-surfcheck: source not found at ${src}; skipping (assuming pre-vendored)`);
+  process.exit(0);
 }
 
 rmSync(dest, { recursive: true, force: true });
