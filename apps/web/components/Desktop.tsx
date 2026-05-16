@@ -11,7 +11,7 @@ import { Markdown } from "@/components/Markdown";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
-import { dateKicker, formatDateLong, forecastDates, todayISO } from "@/lib/date";
+import { dateKicker, formatDateLong, forecastDates, todayISO, TZ } from "@/lib/date";
 
 function normalizeText(s: string): string {
   return s
@@ -1573,21 +1573,106 @@ function SwellRose({ data }: { data: Forecast }) {
   );
 }
 
-function TideArc() {
+function parseHourLabel(s: string): number {
+  return Number(s.replace("h", ""));
+}
+
+function TideArc({ data, isToday }: { data: Forecast; isToday: boolean }) {
+  const [nowHour, setNowHour] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isToday) return;
+    const tick = () => {
+      const h = Number(
+        new Date().toLocaleString("en-US", {
+          timeZone: TZ,
+          hour: "2-digit",
+          hour12: false,
+        }),
+      );
+      setNowHour(Number.isFinite(h) ? h : null);
+    };
+    tick();
+    const id = setInterval(tick, 60_000);
+    return () => clearInterval(id);
+  }, [isToday]);
+
+  const tideHours = data.hours.filter((r) => r.tideH > 0);
   const w = 380,
     h = 150,
     pad = 14;
-  const pts = Array.from({ length: 48 }, (_, i) => {
-    const t = (i / 47) * 24;
-    const v = 1.3 + 0.9 * Math.sin(((t - 3) / 12.4) * 2 * Math.PI);
-    return [pad + (t / 24) * (w - pad * 2), h - pad - 22 - (v / 2.4) * (h - pad * 2 - 22), v] as const;
+
+  if (tideHours.length < 2) {
+    return (
+      <div
+        style={{
+          height: 150,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: C.inkDim,
+          fontSize: 13,
+        }}
+      >
+        sem dados de maré
+      </div>
+    );
+  }
+
+  const tideValues = tideHours.map((r) => r.tideH);
+  const minV = Math.min(...tideValues);
+  const maxV = Math.max(...tideValues);
+  const padded = Math.max(0.2, maxV - minV) * 0.15;
+  const lo = minV - padded;
+  const hi = maxV + padded;
+  const vScale = Math.max(0.01, hi - lo);
+
+  const startHour = parseHourLabel(tideHours[0].h);
+  const endHour = parseHourLabel(tideHours[tideHours.length - 1].h);
+  const hourSpan = Math.max(1, endHour - startHour);
+
+  const baseY = h - pad - 22;
+  const pts = tideHours.map((r) => {
+    const t = parseHourLabel(r.h);
+    const x = pad + ((t - startHour) / hourSpan) * (w - pad * 2);
+    const y = baseY - ((r.tideH - lo) / vScale) * (h - pad * 2 - 22);
+    return { x, y, v: r.tideH, hour: t };
   });
-  const path = pts.map((p, i) => `${i ? "L" : "M"} ${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
-  const fill = `${path} L ${pts[pts.length - 1][0]} ${h - pad - 22} L ${pts[0][0]} ${h - pad - 22} Z`;
-  const nowT = 9;
-  const nowI = Math.round((nowT / 24) * 47);
-  const lows = [3, 15];
-  const highs = [9, 21];
+  const path = pts
+    .map((p, i) => `${i ? "L" : "M"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+    .join(" ");
+  const fill = `${path} L ${pts[pts.length - 1].x.toFixed(1)} ${baseY} L ${pts[0].x.toFixed(1)} ${baseY} Z`;
+
+  const lows: number[] = [];
+  const highs: number[] = [];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = pts[i - 1].v;
+    const cur = pts[i].v;
+    const next = pts[i + 1].v;
+    if (cur < prev && cur <= next) lows.push(i);
+    else if (cur > prev && cur >= next) highs.push(i);
+  }
+
+  const midHour = Math.round((startHour + endHour) / 2);
+  const tickHours = Array.from(new Set([startHour, midHour, endHour]));
+
+  let nowIdx: number | null = null;
+  if (isToday && nowHour !== null && nowHour >= startHour && nowHour <= endHour) {
+    const found = pts.findIndex((p) => p.hour === nowHour);
+    nowIdx = found === -1 ? null : found;
+  }
+
+  const labelLeftEdge = 8;
+  const labelRightEdge = w - 8;
+  const clampLabelX = (x: number, anchor: "start" | "middle" | "end") => {
+    if (anchor === "middle") {
+      return Math.max(labelLeftEdge + 32, Math.min(labelRightEdge - 32, x));
+    }
+    if (anchor === "start") {
+      return Math.max(labelLeftEdge, Math.min(labelRightEdge - 60, x));
+    }
+    return Math.max(labelLeftEdge + 60, Math.min(labelRightEdge, x));
+  };
+
   return (
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="150">
@@ -1600,58 +1685,71 @@ function TideArc() {
         <path d={fill} fill="url(#tidegrad)" />
         <path d={path} stroke={C.teal} strokeWidth="2.5" fill="none" strokeLinecap="round" />
         <g>
-          {lows.map((t) => {
-            const i = Math.round((t / 24) * 47);
-            return (
-              <g key={`lo${t}`}>
-                <circle cx={pts[i][0]} cy={pts[i][1]} r="3" fill={C.amber} />
-                <text
-                  x={pts[i][0]}
-                  y={pts[i][1] + 18}
-                  fontSize="10"
-                  fill={C.amber}
-                  textAnchor="middle"
-                  fontFamily={C.sans}
-                  fontWeight="600"
-                >{`baixa ${String(t).padStart(2, "0")}:42`}</text>
-              </g>
-            );
-          })}
-          {highs.map((t) => {
-            const i = Math.round((t / 24) * 47);
-            return (
-              <g key={`hi${t}`}>
-                <circle cx={pts[i][0]} cy={pts[i][1]} r="3" fill={C.coral} />
-                <text
-                  x={pts[i][0]}
-                  y={pts[i][1] - 8}
-                  fontSize="10"
-                  fill={C.coral}
-                  textAnchor="middle"
-                  fontFamily={C.sans}
-                  fontWeight="600"
-                >{`alta ${String(t).padStart(2, "0")}:51`}</text>
-              </g>
-            );
-          })}
+          {lows.map((i) => (
+            <g key={`lo${i}`}>
+              <circle cx={pts[i].x} cy={pts[i].y} r="3" fill={C.amber} />
+              <text
+                x={clampLabelX(pts[i].x, "middle")}
+                y={pts[i].y + 18}
+                fontSize="10"
+                fill={C.amber}
+                textAnchor="middle"
+                fontFamily={C.sans}
+                fontWeight="600"
+              >
+                {`baixa ${String(pts[i].hour).padStart(2, "0")}h · ${pts[i].v.toFixed(1)}m`}
+              </text>
+            </g>
+          ))}
+          {highs.map((i) => (
+            <g key={`hi${i}`}>
+              <circle cx={pts[i].x} cy={pts[i].y} r="3" fill={C.coral} />
+              <text
+                x={clampLabelX(pts[i].x, "middle")}
+                y={pts[i].y - 8}
+                fontSize="10"
+                fill={C.coral}
+                textAnchor="middle"
+                fontFamily={C.sans}
+                fontWeight="600"
+              >
+                {`alta ${String(pts[i].hour).padStart(2, "0")}h · ${pts[i].v.toFixed(1)}m`}
+              </text>
+            </g>
+          ))}
         </g>
-        <line
-          x1={pts[nowI][0]}
-          y1={pad}
-          x2={pts[nowI][0]}
-          y2={h - pad - 22}
-          stroke={C.deep}
-          strokeDasharray="3 3"
-          strokeWidth="1"
-        />
-        <circle cx={pts[nowI][0]} cy={pts[nowI][1]} r="5" fill={C.deep} />
-        <circle cx={pts[nowI][0]} cy={pts[nowI][1]} r="9" fill={C.deep} fillOpacity="0.18" />
-        {[0, 6, 12, 18, 23].map((t) => {
-          const i = Math.round((t / 24) * 47);
+        {nowIdx !== null && (
+          <g>
+            <line
+              x1={pts[nowIdx].x}
+              y1={pad}
+              x2={pts[nowIdx].x}
+              y2={baseY}
+              stroke={C.deep}
+              strokeDasharray="3 3"
+              strokeWidth="1"
+            />
+            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="5" fill={C.deep} />
+            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="9" fill={C.deep} fillOpacity="0.18" />
+            <text
+              x={clampLabelX(pts[nowIdx].x + 8, "start")}
+              y={pad + 12}
+              fontSize="11"
+              fontFamily={C.sans}
+              fontWeight="700"
+              fill={C.deep}
+            >
+              {`agora · ${pts[nowIdx].v.toFixed(1)}m`}
+            </text>
+          </g>
+        )}
+        {tickHours.map((t) => {
+          const i = pts.findIndex((p) => p.hour === t);
+          if (i === -1) return null;
           return (
             <text
               key={t}
-              x={pts[i][0]}
+              x={pts[i].x}
               y={h - 4}
               fontSize="10"
               textAnchor="middle"
@@ -1660,27 +1758,53 @@ function TideArc() {
             >{`${String(t).padStart(2, "0")}h`}</text>
           );
         })}
-        <text
-          x={pts[nowI][0] + 8}
-          y={pad + 12}
-          fontSize="11"
-          fontFamily={C.sans}
-          fontWeight="700"
-          fill={C.deep}
-        >
-          agora · 2.0m
-        </text>
       </svg>
     </div>
   );
 }
 
-function Hist() {
+const MONTH_FMT = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: TZ });
+const round1 = (n: number) => Math.round(n * 10) / 10;
+
+function Hist({ data, date }: { data: Forecast; date: string }) {
+  const peakIdx = data.hours.reduce(
+    (best, h, i, arr) => (h.score > arr[best].score ? i : best),
+    0,
+  );
+  const peak = data.hours[peakIdx];
+  const todayScore = peak?.score ?? data.spot.todayPeak ?? 0;
+  const todayH = peak?.swH ?? 0;
+  const todayT = peak?.swT ?? 0;
+  const { avgScore, avgSwH, avgSwT } = data.historic;
+
   const rows = [
-    { label: "Score", today: 8.9, avg: 6.1, max: 10, unit: "" },
-    { label: "Altura", today: 1.7, avg: 1.2, max: 3, unit: "m" },
-    { label: "Período", today: 13, avg: 9.5, max: 18, unit: "s" },
+    { label: "Score", today: round1(todayScore), avg: avgScore, max: 10, unit: "" },
+    {
+      label: "Altura",
+      today: round1(todayH),
+      avg: avgSwH,
+      max: Math.max(3, Math.ceil(Math.max(todayH, avgSwH))),
+      unit: "m",
+    },
+    {
+      label: "Período",
+      today: Math.round(todayT),
+      avg: avgSwT,
+      max: Math.max(18, Math.ceil(Math.max(todayT, avgSwT))),
+      unit: "s",
+    },
   ];
+
+  const delta = avgScore > 0 ? ((todayScore - avgScore) / avgScore) * 100 : 0;
+  const above = delta >= 0;
+  const pct = Math.round(Math.abs(delta));
+  const monthName = MONTH_FMT.format(new Date(`${date}T12:00:00`));
+  const summary = `${above ? "↑ acima da média" : "↓ abaixo da média"}`;
+  const detail = `${pct}% ${above ? "acima" : "abaixo"} da média de ${monthName}`;
+  const accent = above ? C.coral : C.teal;
+  const bg = above ? `${C.sun}22` : `${C.teal2}22`;
+  const noteColor = above ? C.amber : C.teal;
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {rows.map((r) => (
@@ -1739,22 +1863,33 @@ function Hist() {
           padding: "10px 14px",
           borderRadius: 14,
           fontSize: 12.5,
-          background: `${C.sun}22`,
-          color: C.amber,
+          background: bg,
+          color: noteColor,
           lineHeight: 1.5,
         }}
       >
-        <b style={{ color: C.coral }}>↑ acima da média</b>
+        <b style={{ color: accent }}>{summary}</b>
         <br />
-        <span style={{ color: C.inkDim }}>
-          32% acima de novembro · top 18% das sessões logadas no pico.
-        </span>
+        <span style={{ color: C.inkDim }}>{detail}</span>
       </div>
     </div>
   );
 }
 
-function SideCards({ data }: { data: Forecast }) {
+function SideCards({
+  data,
+  isToday,
+  date,
+}: {
+  data: Forecast;
+  isToday: boolean;
+  date: string;
+}) {
+  const tideHours = data.hours.filter((r) => r.tideH > 0);
+  const tideTitle =
+    tideHours.length >= 2
+      ? `Maré · ${tideHours[0].h}–${tideHours[tideHours.length - 1].h}`
+      : "Maré";
   return (
     <div
       style={{
@@ -1767,11 +1902,11 @@ function SideCards({ data }: { data: Forecast }) {
       <Card title="Direção do swell">
         <SwellRose data={data} />
       </Card>
-      <Card title="Maré · 24h">
-        <TideArc />
+      <Card title={tideTitle}>
+        <TideArc data={data} isToday={isToday} />
       </Card>
       <Card title="Comparado à média">
-        <Hist />
+        <Hist data={data} date={date} />
       </Card>
     </div>
   );
@@ -1807,7 +1942,7 @@ export function Desktop({
       <main style={{ flex: "1 1 auto", overflow: "auto" }}>
         <TopBar spot={spot} gear={gear} date={d} today={t} />
         <Hero data={data} />
-        <SideCards data={data} />
+        <SideCards data={data} isToday={d === t} date={d} />
         <HourTable data={data} />
       </main>
     </div>
