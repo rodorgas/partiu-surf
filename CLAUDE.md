@@ -84,6 +84,7 @@ The `plan/` directory contains the original phased plan (scaffold → storage �
 - **Upstash Redis** (`@upstash/redis`, env via `Redis.fromEnv()`): forecast cache, 12h TTL for today/future, permanent for past dates. Namespace `forecast:{slug}:{YYYY-MM-DD}`.
 - **Upstash Ratelimit** (`@upstash/ratelimit`) on the chat route.
 - **Anthropic SDK** (`@anthropic-ai/sdk`) for chat. Model: Claude Haiku 4.5.
+- **Langfuse** (`langfuse` v3) for LLM tracing on `/api/chat`. Singleton in `lib/langfuse.ts` no-ops when keys are unset, so local runs without Langfuse env vars work unchanged. Env: `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`. **Gotcha:** the SDK auto-reads `LANGFUSE_BASEURL` (no underscore); we use `LANGFUSE_BASE_URL` for readability and pass it explicitly to the constructor. Trace shape: one `chat.message` trace → one `anthropic.messages.stream` generation per request. Final-message capture (output text + token usage incl. `cache_read_input_tokens` / `cache_creation_input_tokens`) and `flushAsync()` run inside `next/server`'s `after()` so the response streams immediately and the lambda stays alive via `waitUntil` until events ship.
 - **WorldTides** (optional) for tide enrichment — same key/silent-skip behavior as the CLI.
 
 ### Vercel account
