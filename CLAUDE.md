@@ -86,6 +86,12 @@ The `plan/` directory contains the original phased plan (scaffold → storage �
 - **Anthropic SDK** (`@anthropic-ai/sdk`) for chat. Model: Claude Haiku 4.5.
 - **WorldTides** (optional) for tide enrichment — same key/silent-skip behavior as the CLI.
 
+### Instrumentation / analytics
+
+- **Vercel Web Analytics** (`@vercel/analytics`) + **Speed Insights** (`@vercel/speed-insights`) — mounted in `app/layout.tsx`. Zero-config pageview + Core Web Vitals; dashboard in the Vercel project.
+- **PostHog** (`posthog-js` + `posthog-node`) — product analytics, session replay, feature flags, error tracking. Init in `instrumentation-client.ts` (Next.js 16 root-level file that runs before hydration). Server-side captures in `app/api/chat/route.ts` use `next/server`'s `after()` to flush without blocking the streaming response. `lib/posthog-server.ts` extracts the browser's `distinct_id` from the `ph_<key>_posthog` cookie so client and server events join.
+- Env: `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` (required to enable; both client and server read it), `NEXT_PUBLIC_POSTHOG_HOST` (optional, defaults to `https://us.i.posthog.com`). When unset, PostHog is silently disabled — same pattern as `ANTHROPIC_API_KEY` / `WORLDTIDES_API_KEY`. LLM observability stays on Langfuse, not PostHog LLM Analytics.
+
 ### Vercel account
 
 Deploys go to the **personal** account, not work:
