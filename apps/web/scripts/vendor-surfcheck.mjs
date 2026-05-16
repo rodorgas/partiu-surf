@@ -3,21 +3,13 @@
 // modules at runtime. Re-run on every predev/prebuild; the destination tree
 // is wiped first so deletions in the source propagate.
 
-import { cpSync, existsSync, rmSync } from "node:fs";
+import { cpSync, rmSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const src = resolve(here, "..", "..", "..", "surfcheck");
 const dest = resolve(here, "..", "api", "_vendored", "surfcheck");
-
-if (!existsSync(src)) {
-  // On Vercel the deploy upload is rooted at apps/web/, so the parent
-  // surfcheck/ tree isn't visible. We assume _vendored/ was pre-populated
-  // locally and shipped via .vercelignore, and skip rather than fail.
-  console.warn(`vendor-surfcheck: source not found at ${src}; skipping (assuming pre-vendored)`);
-  process.exit(0);
-}
 
 rmSync(dest, { recursive: true, force: true });
 cpSync(src, dest, {

@@ -1,7 +1,3 @@
-# .vercelignore overrides .gitignore for Vercel uploads.
-# We need api/_vendored/ to ship (gitignored, populated by prebuild),
-# so this file lists excludes explicitly without that path.
-
 node_modules
 .next
 .env*
