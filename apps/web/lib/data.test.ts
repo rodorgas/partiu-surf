@@ -5,8 +5,8 @@ import type { ForecastHour, TideState } from "./data";
 const VALID_TIDES: TideState[] = ["subindo", "descendo", "alta", "baixa"];
 
 describe("MOCK_FORECAST", () => {
-  it("matches the Forecast shape with 13 hourly entries", () => {
-    expect(MOCK_FORECAST.hours).toHaveLength(13);
+  it("matches the Forecast shape with 14 hourly entries", () => {
+    expect(MOCK_FORECAST.hours).toHaveLength(14);
     for (const h of MOCK_FORECAST.hours as ForecastHour[]) {
       expect(typeof h.h).toBe("string");
       expect(h.score).toBeGreaterThanOrEqual(0);

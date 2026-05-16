@@ -58,7 +58,7 @@ function Body({
       <div style={{ height: 12 }} />
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />
-      <HourList rows={data.hours} max={8} />
+      <HourList rows={data.hours} />
       <ScoreMethodology variant="mobile" />
       <div style={{ height: 240 }} />
     </>

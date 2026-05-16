@@ -627,9 +627,8 @@ export function SummaryCard({
   );
 }
 
-export function HourList({ rows, max = 8 }: { rows: ForecastHour[]; max?: number }) {
-  const useRows = rows.slice(0, max);
-  const peakMax = Math.max(...useRows.map((x) => x.score));
+export function HourList({ rows }: { rows: ForecastHour[] }) {
+  const peakMax = Math.max(...rows.map((x) => x.score));
   return (
     <div
       style={{
@@ -664,10 +663,10 @@ export function HourList({ rows, max = 8 }: { rows: ForecastHour[]; max?: number
             fontSize: 11,
           }}
         >
-          06h → 18h
+          05h → 18h
         </span>
       </div>
-      {useRows.map((r, i) => {
+      {rows.map((r, i) => {
         const peak = r.score === peakMax;
         const ink = scoreInk(r.score);
         return (
@@ -680,7 +679,7 @@ export function HourList({ rows, max = 8 }: { rows: ForecastHour[]; max?: number
               alignItems: "center",
               gap: 8,
               background: peak ? "#fff5e2" : "transparent",
-              borderBottom: i < useRows.length - 1 ? `1px solid ${C.rule}66` : "none",
+              borderBottom: i < rows.length - 1 ? `1px solid ${C.rule}66` : "none",
               fontSize: 12.5,
               color: C.ink,
               fontVariantNumeric: "tabular-nums",
