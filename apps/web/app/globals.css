@@ -44,3 +44,26 @@ input, textarea {
   .layout-desktop { display: none; }
   .layout-mobile  { display: block; }
 }
+
+/* Desktop layout responsive bands — keep <main> shrinkable inside the flex
+   row and let the wide hour-table scroll horizontally inside its own card
+   instead of blowing out the page. */
+.surf-desktop-main { min-width: 0; }
+.surf-hour-scroll  { overflow-x: auto; }
+
+@media (max-width: 1100px) and (min-width: 769px) {
+  .surf-chat-panel { width: 320px !important; flex-basis: 320px !important; }
+  .surf-hero-row   { flex-wrap: wrap !important; }
+  .surf-hero-text  { flex-basis: 100% !important; min-width: 0 !important; }
+  .surf-hero-wedge { margin-left: auto !important; margin-right: auto !important; }
+}
+/* Mid range: swell rose spans the full top row, tide + histogram share row 2. */
+@media (max-width: 1100px) and (min-width: 901px) {
+  .surf-side-cards                  { grid-template-columns: 1fr 1fr !important; }
+  .surf-side-cards > :nth-child(1)  { grid-column: 1 / -1 !important; }
+}
+/* Narrow range: stack all three cards. */
+@media (max-width: 900px) and (min-width: 769px) {
+  .surf-chat-panel { width: 280px !important; flex-basis: 280px !important; }
+  .surf-side-cards { grid-template-columns: 1fr !important; }
+}
