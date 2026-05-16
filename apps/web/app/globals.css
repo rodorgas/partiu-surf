@@ -57,6 +57,13 @@ input, textarea {
   .surf-hero-text  { flex-basis: 100% !important; min-width: 0 !important; }
   .surf-hero-wedge { margin-left: auto !important; margin-right: auto !important; }
 }
+/* Mid range: swell rose spans the full top row, tide + histogram share row 2. */
+@media (max-width: 1100px) and (min-width: 901px) {
+  .surf-side-cards                  { grid-template-columns: 1fr 1fr !important; }
+  .surf-side-cards > :nth-child(1)  { grid-column: 1 / -1 !important; }
+}
+/* Narrow range: stack all three cards. */
 @media (max-width: 900px) and (min-width: 769px) {
   .surf-chat-panel { width: 280px !important; flex-basis: 280px !important; }
+  .surf-side-cards { grid-template-columns: 1fr !important; }
 }
