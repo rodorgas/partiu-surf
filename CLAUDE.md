@@ -46,9 +46,64 @@ Spots are positional tuples in `config.SPOTS`; the index meanings are documented
 
 All times are naive in `America/Sao_Paulo` (set via `config.TZ` and passed to Open-Meteo). The cutoff in `cmd_scan` strips tzinfo deliberately so it matches the naive ISO strings the APIs return — don't introduce tz-aware datetimes into the row pipeline without converting the API timestamps too.
 
-## Web frontend (under construction)
+## Web app — `apps/web/`
 
-- `web/` — static prototype (HTML + React via CDN, mock data). Pixel-perfect implementation of the Claude Design handoff. **Will be migrated into `apps/web/` as a Next.js app and then deleted.**
-- `plan/` — phased implementation plan for the production frontend (Next.js 16 on Vercel + Upstash Redis + Anthropic Haiku chat). Read `plan/README.md` first.
+Production frontend live on Vercel. Next.js 16 (App Router) + React 19, deployed alongside a single Python serverless function. **`apps/web/AGENTS.md` warns that this Next.js version has breaking changes from training data — read `node_modules/next/dist/docs/` before writing framework code.**
 
-`surfcheck/scoring.py` stays the canonical scoring implementation. The web app will deploy it as a Python serverless function (`apps/web/api/score.py`) rather than reimplementing the math in TS — don't port it without a deliberate decision to make TS the source of truth.
+```bash
+cd apps/web
+pnpm dev          # vendors surfcheck/ then next dev
+pnpm build        # vendors surfcheck/ then next build
+pnpm test         # vitest
+pnpm test:e2e     # playwright
+pnpm lint
+```
+
+The `plan/` directory contains the original phased plan (scaffold → storage → forecast pipeline → chat → hardening). Phases 1–4 shipped; treat it as historical context, not a roadmap.
+
+### Forecast pipeline (TS ↔ Python split)
+
+**Python owns fetch + row alignment + scoring. TS owns caching and view-model shape.** This avoids porting `cli._build_rows` to TS and keeps the math in one place.
+
+- `api/forecast.py` — Vercel Python function (`@vercel/python@4.3.0`, 512 MB, 15s). Imports the **vendored** `surfcheck/` package from `api/_vendored/surfcheck/` and emits JSON for `(spot, date, gear)`.
+- `scripts/vendor-surfcheck.mjs` — copies repo-root `surfcheck/` → `api/_vendored/surfcheck/` on `predev`/`prebuild`. On Vercel the upload root is `apps/web/`, so the parent tree isn't visible — the script then **skips** (does not fail) and relies on the pre-vendored copy that ships via `.vercelignore`.
+- `lib/forecast.ts` — calls `/api/forecast` (via `VERCEL_PROJECT_PRODUCTION_URL` to bypass deployment protection, falling back to `VERCEL_URL`, then `localhost:3000`), caches the result in Upstash Redis (`lib/cache.ts`), and adapts the JSON into the `Forecast` shape the UI consumes. In local dev with no running route, it `spawnSync`s the Python function directly.
+
+**Canonical scoring stays in `surfcheck/scoring.py`** — both the CLI and the web app import from it. Don't reimplement in TS without a deliberate decision to switch sources of truth.
+
+### Routes
+
+- `app/page.tsx` — home / default spot.
+- `app/[spot]/page.tsx` — per-spot page; query params `gear`, `date`, `today`.
+- `app/api/chat` — streaming Anthropic Haiku 4.5 with two cached prefix blocks (system prompt + per-spot forecast JSON). NDJSON over HTTP, not SSE. Falls back to a canned response when `ANTHROPIC_API_KEY` is unset.
+- `app/api/refresh` — cache-bust endpoint (cron + manual ops). Header `x-refresh-secret` gated by `REFRESH_SECRET`; **fails closed** when the env var is unset.
+- `app/api/health` — Upstash ping smoke test.
+
+### Storage / external deps
+
+- **Upstash Redis** (`@upstash/redis`, env via `Redis.fromEnv()`): forecast cache, 12h TTL for today/future, permanent for past dates. Namespace `forecast:{slug}:{YYYY-MM-DD}`.
+- **Upstash Ratelimit** (`@upstash/ratelimit`) on the chat route.
+- **Anthropic SDK** (`@anthropic-ai/sdk`) for chat. Model: Claude Haiku 4.5.
+- **WorldTides** (optional) for tide enrichment — same key/silent-skip behavior as the CLI.
+
+### Vercel account
+
+Deploys go to the **personal** account, not work:
+
+- Team slug: `rodorgas-projects` (internal team id `team_kdlAHsNI9yDB5ShJWdyTzI0U`)
+- Project: `surf` — production alias `https://partiu.surf`
+- Linked via `apps/web/.vercel/project.json` (committed; safe — just IDs)
+
+The user's default `vercel` CLI auth points at their **work** account. To run CLI commands against this project, pass the personal token explicitly — it lives in the repo root at `.vercel-token` (gitignored, never commit). Pattern:
+
+```bash
+_ZO_DOCTOR=0 vercel <cmd> --token "$(cat /Users/rodrigo.orem/Documents/personal/surf/.vercel-token)"
+```
+
+The `_ZO_DOCTOR=0` prefix silences a zoxide warning that the CLI emits on stderr in this shell. Don't inline the token value in any committed file — re-read `.vercel-token` each time.
+
+### Deployment gotchas
+
+- `vercel.json` sets `excludeFiles` on `api/forecast.py` to keep the Next.js build output (`.next`, `node_modules`, `app/`, `components/`, …) out of the Python lambda bundle.
+- `.vercelignore` is the source of truth for what ships; **it deliberately does not exclude `api/_vendored/`** even though that path is gitignored, so the pre-vendored `surfcheck/` reaches the lambda.
+- Hobby plans gate the deployment-specific hostname behind Vercel Deployment Protection (401 to unauthenticated callers). Self-fetches must use `VERCEL_PROJECT_PRODUCTION_URL`, not `VERCEL_URL` — already handled in `lib/forecast.ts`.
