@@ -219,7 +219,6 @@ export async function POST(req: Request) {
       messages,
     });
 
-<<<<<<< HEAD
     if (lf) {
       // Capture usage + final text after the response has been sent. `after`
       // delegates to Vercel's waitUntil so the lambda stays alive until
