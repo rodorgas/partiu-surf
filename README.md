@@ -48,8 +48,8 @@ The dev server expects `ANTHROPIC_API_KEY` (chat — falls back to a canned resp
             │                                  │  lib/forecast.ts  │
             │                                  └─┬───────────────┬─┘
             │                                    │               │
-            │                              cache │               │ stream
-            │                                    ▼               ▼
+            │                       whole-result │               │ stream
+            │                              cache ▼               ▼
             │                            ┌──────────────┐  ┌──────────────┐
             │                            │ Upstash Redis│  │ Anthropic    │
             │                            │   12h TTL    │  │ Haiku 4.5    │
@@ -67,10 +67,14 @@ The dev server expects `ANTHROPIC_API_KEY` (chat — falls back to a canned resp
             │   fetch · score · geometry · tides     │
             └───────────────┬───────────────┬────────┘
                             ▼               ▼
-                    ┌─────────────┐  ┌──────────────┐
-                    │  Open-Meteo │  │  WorldTides  │
-                    │ marine + atm│  │  (optional)  │
-                    └─────────────┘  └──────────────┘
+                    ┌─────────────┐  ┌──────────────────┐
+                    │  Open-Meteo │  │   WorldTides     │
+                    │ marine + atm│  │   (optional)     │
+                    │  (no cache) │  │ ~/.surfcheck/    │◀── CLI tide cache
+                    └─────────────┘  │ cache/*.json     │    (per-day, same
+                                     └──────────────────┘     date rule as Redis)
 ```
 
-The pipeline is **fetch → align hourly rows → score → render**. Open-Meteo provides marine and atmospheric forecasts; WorldTides optionally adds tide heights. `surfcheck/scoring.py` blends three sub-scores (or four, with tide) using fixed weights that live in one place. Spots are positional tuples with a facing direction, shelter arc, and size tolerance; gear profiles are step-curves that map wave energy to a 0–10. The web app deploys the same Python scoring as a Vercel function and caches results in Upstash Redis (12h TTL, permanent for past dates).
+The pipeline is **fetch → align hourly rows → score → render**. Open-Meteo provides marine and atmospheric forecasts; WorldTides optionally adds tide heights. `surfcheck/scoring.py` blends three sub-scores (or four, with tide) using fixed weights that live in one place. Spots are positional tuples with a facing direction, shelter arc, and size tolerance; gear profiles are step-curves that map wave energy to a 0–10.
+
+**Two caches with the same date rule** (past = permanent, today/future = until end-of-day): the CLI caches WorldTides responses to `~/.surfcheck/cache/` as JSON files (Open-Meteo is free, so no point); the web app skips per-API caching and instead Redis-caches the entire assembled `Forecast` per `(spot, date)`. The CLI also writes `~/.surfcheck/sessions.jsonl` — one record per logged surf session, including the predicted score at log time, for future calibration analysis.
