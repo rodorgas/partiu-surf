@@ -10,8 +10,10 @@
 // a canned streaming response so the rest of the UI works without a key.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { after } from "next/server";
 import { chatLimiter, clientId } from "@/lib/ratelimit";
 import { getForecast } from "@/lib/forecast";
+import { distinctIdFromRequest, getPostHogServer } from "@/lib/posthog-server";
 import { getSpot } from "@/lib/spots";
 
 export const runtime = "nodejs";
@@ -115,9 +117,11 @@ export async function POST(req: Request) {
 
   // 3. Rate-limit gate. chatLimiter is sliding-window 10/h per clientId.
   const id = clientId(req);
+  const distinctId = distinctIdFromRequest(req, id);
   const { success, remaining, reset } = await chatLimiter.limit(id);
   if (!success) {
     const minutes = Math.max(1, Math.ceil((reset - Date.now()) / 60_000));
+    capture(distinctId, "chat_rate_limited", { spot: body.spot });
     return Response.json(
       {
         error: "rate_limited",
@@ -196,6 +200,12 @@ export async function POST(req: Request) {
       messages,
     });
 
+    capture(distinctId, "chat_message_sent", {
+      spot: body.spot,
+      message_length: body.message.length,
+      history_length: body.history.length,
+    });
+
     return new Response(stream.toReadableStream(), {
       headers: {
         "Content-Type": "text/event-stream",
@@ -204,11 +214,29 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("chat: anthropic call failed", err);
+    capture(distinctId, "chat_failed", { spot: body.spot });
     return Response.json(
       { error: "chat_failed", message: "Não consegui processar agora, tenta de novo." },
       { status: 502 },
     );
   }
+}
+
+function capture(
+  distinctId: string,
+  event: string,
+  properties: Record<string, unknown>,
+): void {
+  const ph = getPostHogServer();
+  if (!ph) return;
+  after(async () => {
+    try {
+      ph.capture({ distinctId, event, properties });
+      await ph.flush();
+    } catch (err) {
+      console.error("posthog: capture failed", err);
+    }
+  });
 }
 
 /**
