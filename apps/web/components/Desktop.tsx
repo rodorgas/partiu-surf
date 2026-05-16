@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import type { Forecast } from "@/lib/data";
-import { dirLabel } from "@/lib/data";
+import { breakTypeLabel, dirLabel } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
@@ -1290,7 +1290,7 @@ function Hero({ data }: { data: Forecast }) {
                 gap: 6,
               }}
             >
-              <MapPin size={12} /> {data.spot.breakType} · facing {facingLabel} · maré {tideState}
+              <MapPin size={12} /> {breakTypeLabel(data.spot.breakType)} · frente para {facingLabel} · maré {tideState}
             </div>
             <h1
               style={{

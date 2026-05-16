@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 import type { Forecast, ForecastHour } from "@/lib/data";
-import { dirLabel } from "@/lib/data";
+import { breakTypeLabel, dirLabel } from "@/lib/data";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
 import { dateKicker, formatDateLong, forecastDates } from "@/lib/date";
@@ -602,7 +602,7 @@ export function SummaryCard({
               gap: 4,
             }}
           >
-            <MapPin size={11} /> {data.spot.breakType} · facing {dirLabel(data.spot.facing)}
+            <MapPin size={11} /> {breakTypeLabel(data.spot.breakType)} · frente para {dirLabel(data.spot.facing)}
           </div>
           <div
             style={{
