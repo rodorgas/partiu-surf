@@ -189,10 +189,10 @@ def build_forecast(params: dict) -> dict:
 
     rows = _build_rows(marine, forecast_data, cutoff, hours, spot_tuple, gear_key, tide)
 
-    # Daylight slice — the UI's "06h–18h · janela diurna" header expects this.
-    daylight = [r for r in rows if 6 <= int(r["h"].rstrip("h")) <= 18]
+    # Daylight slice — the UI's "05h–18h · janela diurna" header expects this.
+    daylight = [r for r in rows if 5 <= int(r["h"].rstrip("h")) <= 18]
     if not daylight and rows:
-        daylight = rows[:13]
+        daylight = rows[:14]
 
     today_peak = max((r["score"] for r in daylight), default=0.0)
     best_window = _find_best_window(daylight) or "—"
