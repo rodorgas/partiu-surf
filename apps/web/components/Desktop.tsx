@@ -4,6 +4,26 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import {
+  Activity,
+  ArrowDown,
+  ArrowUp,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  CircleDot,
+  LayoutGrid,
+  MapPin,
+  Search,
+  Send,
+  Sparkles,
+  Thermometer,
+  TriangleAlert,
+  Waves,
+  Wind,
+  X,
+} from "lucide-react";
 import type { Forecast } from "@/lib/data";
 import { dirLabel } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
@@ -367,9 +387,12 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
                 padding: "6px 8px 8px",
                 letterSpacing: "0.04em",
                 fontWeight: 600,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              ✶ tente perguntar
+              <Sparkles size={12} /> tente perguntar
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {data.suggestions.map((s, i) => (
@@ -396,7 +419,12 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
                     lineHeight: 1.4,
                   }}
                 >
-                  {i === 0 && <span style={{ marginRight: 8 }}>✦</span>}
+                  {i === 0 && (
+                    <Sparkles
+                      size={12}
+                      style={{ marginRight: 8, verticalAlign: "-2px" }}
+                    />
+                  )}
                   {s}
                 </button>
               ))}
@@ -449,10 +477,9 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 16,
             }}
           >
-            ↑
+            <Send size={16} />
           </button>
         </div>
       </form>
@@ -512,12 +539,12 @@ function GearPicker({
           fontFamily: "inherit",
         }}
       >
-        <span style={{ color: C.teal }}>◑</span>
+        <LayoutGrid size={14} color={C.teal} />
         <span style={{ fontSize: 14, color: C.ink, fontWeight: 600 }}>
           {label}
         </span>
-        <span style={{ fontSize: 11, color: C.inkSoft, marginLeft: 2 }}>
-          {open ? "▴" : "▾"}
+        <span style={{ display: "inline-flex", color: C.inkSoft, marginLeft: 2 }}>
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </span>
       </button>
       {open && (
@@ -594,7 +621,7 @@ function SpotPickerItem({
           fontWeight: isCurrent ? 600 : 500,
         }}
       >
-        <span style={{ color: C.teal }}>◔</span>
+        <MapPin size={14} color={C.teal} />
         <span>{spot.name}</span>
         <span style={{ marginLeft: "auto", fontSize: 12, color: C.inkSoft }}>
           {spot.region}
@@ -750,11 +777,22 @@ function SpotPicker({
           textAlign: "left",
         }}
       >
-        <span style={{ color: C.teal }}>⌕</span>
+        <Search size={14} color={C.teal} />
         <span style={{ fontSize: 14, color: C.ink, fontWeight: 600 }}>{current.name}</span>
         <span style={{ fontSize: 13, color: C.inkDim }}>· {current.region}</span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: C.inkSoft, fontWeight: 500 }}>
-          {totalCount} picos · BR {open ? "▴" : "▾"}
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 11,
+            color: C.inkSoft,
+            fontWeight: 500,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          {totalCount} picos · BR
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </span>
       </button>
       {open && (
@@ -788,7 +826,7 @@ function SpotPicker({
               marginBottom: 6,
             }}
           >
-            <span style={{ color: C.teal, fontSize: 14 }}>⌕</span>
+            <Search size={14} color={C.teal} />
             <input
               ref={inputRef}
               type="search"
@@ -819,11 +857,12 @@ function SpotPicker({
                   background: "transparent",
                   color: C.inkSoft,
                   cursor: "pointer",
-                  fontSize: 14,
                   padding: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
                 }}
               >
-                ×
+                <X size={14} />
               </button>
             )}
           </div>
@@ -976,15 +1015,15 @@ function DatePicker({
           fontFamily: "inherit",
         }}
       >
-        <span style={{ color: C.coral }}>☼</span>
+        <Calendar size={14} color={C.coral} />
         {kicker && (
           <span style={{ fontSize: 14, color: C.ink, fontWeight: 600 }}>
             {kicker}
           </span>
         )}
         <span style={{ fontSize: 13, color: C.inkDim }}>{main}</span>
-        <span style={{ fontSize: 11, color: C.inkSoft, marginLeft: 2 }}>
-          {open ? "▴" : "▾"}
+        <span style={{ display: "inline-flex", color: C.inkSoft, marginLeft: 2 }}>
+          {open ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </span>
       </button>
       {open && (
@@ -1071,7 +1110,7 @@ function TopBar({
   );
 }
 
-function Pill({ icon, label, v, tone, sub }: { icon: string; label: string; v: string; tone?: string; sub?: string }) {
+function Pill({ icon, label, v, tone, sub }: { icon: React.ReactNode; label: string; v: string; tone?: string; sub?: string }) {
   return (
     <span
       style={{
@@ -1085,7 +1124,7 @@ function Pill({ icon, label, v, tone, sub }: { icon: string; label: string; v: s
         color: C.ink,
       }}
     >
-      <span style={{ color: tone === "green" ? C.green : C.teal, fontSize: 14 }}>{icon}</span>
+      <span style={{ display: "inline-flex", color: tone === "green" ? C.green : C.teal }}>{icon}</span>
       <span
         style={{
           color: C.inkDim,
@@ -1191,7 +1230,7 @@ function ScoreWedge({ score }: { score: number }) {
           gap: 6,
         }}
       >
-        🟢 dia bom · 32% acima da média
+        <Circle size={10} fill={C.green} color={C.green} /> dia bom · 32% acima da média
       </div>
     </div>
   );
@@ -1246,9 +1285,12 @@ function Hero({ data }: { data: Forecast }) {
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
                 marginBottom: 6,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              ◔ {data.spot.breakType} · facing {facingLabel} · maré {tideState}
+              <MapPin size={12} /> {data.spot.breakType} · facing {facingLabel} · maré {tideState}
             </div>
             <h1
               style={{
@@ -1269,10 +1311,10 @@ function Hero({ data }: { data: Forecast }) {
               <b style={{ color: C.deep }}>{swellSummary}</b>. Acompanhe vento e maré hora a hora abaixo.
             </p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 18 }}>
-              <Pill icon="≋" label="Swell" v={swellSummary} />
-              <Pill icon="✱" label="Vento" v={windSummary} />
-              <Pill icon="◐" label="Maré" v={tideSummary} />
-              <Pill icon="◌" label="Água" v={waterSummary} />
+              <Pill icon={<Waves size={14} />} label="Swell" v={swellSummary} />
+              <Pill icon={<Wind size={14} />} label="Vento" v={windSummary} />
+              <Pill icon={<Activity size={14} />} label="Maré" v={tideSummary} />
+              <Pill icon={<Thermometer size={14} />} label="Água" v={waterSummary} />
             </div>
           </div>
 
@@ -1415,13 +1457,40 @@ function HourTable({ data }: { data: Forecast }) {
                     color: r.tide === "alta" ? C.coral : r.tide === "baixa" ? C.amber : C.teal,
                     background:
                       r.tide === "alta" ? "#fce6d6" : r.tide === "baixa" ? "#fbe6c2" : "#d8edf0",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
                   }}
                 >
-                  {r.tide === "subindo" ? "↑" : r.tide === "descendo" ? "↓" : r.tide === "alta" ? "●" : "○"} {r.tide}
+                  {r.tide === "subindo" ? (
+                    <ArrowUp size={11} />
+                  ) : r.tide === "descendo" ? (
+                    <ArrowDown size={11} />
+                  ) : r.tide === "alta" ? (
+                    <CircleDot size={11} />
+                  ) : (
+                    <Circle size={11} />
+                  )}
+                  {r.tide}
                 </span>
               </span>
-              <span style={{ textAlign: "center", fontSize: 14 }}>
-                {r.flag || (r.score >= 7 ? "🟢" : r.score >= 4 ? "🟡" : "🔴")}
+              <span
+                style={{
+                  textAlign: "center",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {r.flag === "⚠️" ? (
+                  <TriangleAlert size={14} color={C.amber} />
+                ) : (
+                  <Circle
+                    size={12}
+                    color={scoreInk(r.score)}
+                    fill={scoreInk(r.score)}
+                  />
+                )}
               </span>
             </div>
           );
@@ -1744,7 +1813,9 @@ function Hist() {
           lineHeight: 1.5,
         }}
       >
-        <b style={{ color: C.coral }}>↑ acima da média</b>
+        <b style={{ color: C.coral, display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <ArrowUp size={12} /> acima da média
+        </b>
         <br />
         <span style={{ color: C.inkDim }}>
           32% acima de novembro · top 18% das sessões logadas no pico.
