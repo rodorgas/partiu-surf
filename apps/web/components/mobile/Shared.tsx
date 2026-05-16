@@ -4,8 +4,19 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  Circle,
+  LayoutGrid,
+  MapPin,
+  Search,
+  TriangleAlert,
+  X,
+} from "lucide-react";
 import type { Forecast, ForecastHour } from "@/lib/data";
-import { dirLabel } from "@/lib/data";
+import { breakTypeLabel, dirLabel } from "@/lib/data";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
 import { dateKicker, formatDateLong, forecastDates } from "@/lib/date";
@@ -115,7 +126,7 @@ function MobileSpotItem({
           fontWeight: isCurrent ? 600 : 500,
         }}
       >
-        <span style={{ color: C.teal }}>◔</span>
+        <MapPin size={13} color={C.teal} />
         <span>{spot.name}</span>
         <span style={{ marginLeft: "auto", fontSize: 11, color: C.inkSoft }}>
           {spot.region.split(" · ")[1] ?? spot.region}
@@ -253,7 +264,9 @@ function MobileSpotPicker({
           fontFamily: "inherit",
         }}
       >
-        ◉ {current.name} {open ? "▴" : "▾"}
+        <MapPin size={12} color={C.teal} />
+        {current.name}
+        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
       </button>
       {open && (
         <div
@@ -286,7 +299,7 @@ function MobileSpotPicker({
               marginBottom: 4,
             }}
           >
-            <span style={{ color: C.teal, fontSize: 13 }}>⌕</span>
+            <Search size={13} color={C.teal} />
             <input
               ref={inputRef}
               type="search"
@@ -318,11 +331,12 @@ function MobileSpotPicker({
                   background: "transparent",
                   color: C.inkSoft,
                   cursor: "pointer",
-                  fontSize: 13,
                   padding: 0,
+                  display: "inline-flex",
+                  alignItems: "center",
                 }}
               >
-                ×
+                <X size={13} />
               </button>
             )}
           </div>
@@ -583,9 +597,12 @@ export function SummaryCard({
               fontWeight: 600,
               letterSpacing: "0.08em",
               textTransform: "uppercase",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
             }}
           >
-            ◔ {data.spot.breakType} · facing {dirLabel(data.spot.facing)}
+            <MapPin size={11} /> {breakTypeLabel(data.spot.breakType)} · frente para {dirLabel(data.spot.facing)}
           </div>
           <div
             style={{
@@ -689,8 +706,19 @@ export function HourList({ rows, max = 8 }: { rows: ForecastHour[]; max?: number
               {r.wKmh}
               <span style={{ color: C.inkSoft, fontSize: 10 }}>km/h</span>
             </span>
-            <span style={{ textAlign: "center", fontSize: 13 }}>
-              {r.flag || (r.score >= 7 ? "🟢" : r.score >= 4 ? "🟡" : "🔴")}
+            <span
+              style={{
+                textAlign: "center",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {r.flag === "⚠️" ? (
+                <TriangleAlert size={13} color={C.amber} />
+              ) : (
+                <Circle size={11} color={ink} fill={ink} />
+              )}
             </span>
           </div>
         );
@@ -776,10 +804,10 @@ function MobileGearPicker({
           whiteSpace: "nowrap",
         }}
       >
-        <span style={{ color: C.teal }}>◑</span>
+        <LayoutGrid size={12} color={C.teal} />
         {label}
-        <span style={{ fontSize: 10, color: C.inkSoft }}>
-          {open ? "▴" : "▾"}
+        <span style={{ display: "inline-flex", color: C.inkSoft }}>
+          {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
         </span>
       </button>
       {open &&
@@ -891,10 +919,10 @@ function MobileDatePicker({
           whiteSpace: "nowrap",
         }}
       >
-        <span style={{ color: C.coral }}>☼</span>
+        <Calendar size={12} color={C.coral} />
         {buttonLabel}
-        <span style={{ fontSize: 10, color: C.inkSoft }}>
-          {open ? "▴" : "▾"}
+        <span style={{ display: "inline-flex", color: C.inkSoft }}>
+          {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
         </span>
       </button>
       {open &&
