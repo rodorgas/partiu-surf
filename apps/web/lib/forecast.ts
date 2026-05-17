@@ -46,6 +46,7 @@ export type RawForecastHour = {
   tide: TideState;
   hasTide: boolean;
   flag: string;
+  winner: string;
   isPeak?: boolean;
 };
 
@@ -238,6 +239,7 @@ export function adaptRawToForecast(raw: RawForecast, spot: Spot): Forecast {
     tide: r.tide,
     hasTide: r.hasTide,
     flag: r.flag,
+    winner: r.winner,
   }));
 
   return {

@@ -748,11 +748,13 @@ export function Chip({ active, children }: { active?: boolean; children: React.R
 function MobileGearPicker({
   spot,
   gear,
+  autoGear,
   date,
   today,
 }: {
   spot: string;
   gear: GearKey;
+  autoGear?: string | null;
   date: string;
   today: string;
 }) {
@@ -763,7 +765,13 @@ function MobileGearPicker({
   // clips position:absolute children on both axes. Use a portal + fixed
   // coords computed from the button rect so the popover escapes the clip.
   const pos = usePopoverPosition(open, buttonRef, "right");
-  const label = GEAR_LABELS[gear];
+  const resolvedAuto =
+    gear === "auto" && autoGear && autoGear in GEAR_LABELS
+      ? GEAR_LABELS[autoGear as GearKey]
+      : null;
+  const label = resolvedAuto
+    ? `${GEAR_LABELS[gear]} · ${resolvedAuto}`
+    : GEAR_LABELS[gear];
 
   useEffect(() => {
     if (!open) return;
@@ -1023,18 +1031,20 @@ function usePopoverPosition(
 export function FilterChips({
   spot,
   gear = "auto",
+  autoGear,
   date,
   today,
 }: {
   spot: string;
   gear?: GearKey;
+  autoGear?: string | null;
   date: string;
   today: string;
 }) {
   return (
     <div style={{ display: "flex", gap: 6, padding: "0 16px", overflowX: "auto" }}>
       <MobileDatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
-      <MobileGearPicker spot={spot} gear={gear} date={date} today={today} />
+      <MobileGearPicker spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
     </div>
   );
 }
