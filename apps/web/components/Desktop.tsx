@@ -1365,7 +1365,7 @@ function HourTable({ data, isToday }: { data: Forecast; isToday: boolean }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "94px 120px 80px 56px 86px 100px 70px 110px 40px",
+            gridTemplateColumns: "62px 130px 80px 56px 86px 100px 70px 110px 40px",
             padding: "10px 18px",
             fontSize: 10.5,
             color: C.inkSoft,
@@ -1397,7 +1397,7 @@ function HourTable({ data, isToday }: { data: Forecast; isToday: boolean }) {
               data-testid={isCurrent ? "hour-row-now" : undefined}
               style={{
                 display: "grid",
-                gridTemplateColumns: "94px 120px 80px 56px 86px 100px 70px 110px 40px",
+                gridTemplateColumns: "62px 130px 80px 56px 86px 100px 70px 110px 40px",
                 padding: "10px 18px",
                 alignItems: "center",
                 gap: 10,
@@ -1411,30 +1411,11 @@ function HourTable({ data, isToday }: { data: Forecast; isToday: boolean }) {
             >
               <span
                 style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
                   fontWeight: peak ? 700 : 500,
-                  color: peak ? C.coral : C.ink,
+                  color: peak ? C.coral : isCurrent ? C.teal : C.ink,
                 }}
               >
                 {r.h}
-                {isCurrent && (
-                  <span
-                    style={{
-                      fontSize: 9,
-                      padding: "1px 5px",
-                      borderRadius: 999,
-                      background: C.teal,
-                      color: "#fff",
-                      fontWeight: 600,
-                      letterSpacing: "0.06em",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    agora
-                  </span>
-                )}
               </span>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ color: ink, fontWeight: 600, width: 24 }}>{r.score.toFixed(1)}</span>
