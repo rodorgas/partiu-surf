@@ -237,7 +237,7 @@ describe("POST /api/chat", () => {
     expect(sys).toHaveLength(3);
     expect(sys[0].cache_control).toEqual({ type: "ephemeral" });
     expect(sys[1].cache_control).toEqual({ type: "ephemeral" });
-    expect(sys[0].text).toMatch(/copiloto do partiu\.surf/);
+    expect(sys[0].text).toMatch(/assistente do partiu\.surf/);
     expect(sys[1].text).toMatch(/Forecast for Itamambuca/);
     // The forecast block embeds the JSON dump so the model can read it.
     expect(sys[1].text).toMatch(/"spot"/);

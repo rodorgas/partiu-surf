@@ -21,7 +21,7 @@ export const runtime = "nodejs";
 
 const TZ = "America/Sao_Paulo";
 
-const SYSTEM_PROMPT = `Você é o copiloto do partiu.surf — um assistente de surf em pt-BR.
+const SYSTEM_PROMPT = `Você é o assistente do partiu.surf — um app de surf em pt-BR.
 Você analisa swell, vento, maré e temperatura, cruza com o nível e equipamento do usuário,
 e responde de forma direta. Seja honesto sobre quando NÃO vale a pena ir surfar.
 Use unidades métricas (metros, segundos, km/h, °C). Direções em português (S, SSE, etc).
