@@ -236,6 +236,7 @@ export function adaptRawToForecast(raw: RawForecast, spot: Spot): Forecast {
     gust: r.gust,
     tideH: r.tideH,
     tide: r.tide,
+    hasTide: r.hasTide,
     flag: r.flag,
   }));
 

@@ -15,6 +15,7 @@ export type ForecastHour = {
   gust: number;
   tideH: number;
   tide: TideState;
+  hasTide?: boolean;
   flag: string;
 };
 
