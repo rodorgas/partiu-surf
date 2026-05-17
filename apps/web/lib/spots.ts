@@ -423,7 +423,7 @@ export const SPOTS: Record<string, Spot> = {
 };
 
 /** Default spot when none is provided (root redirects here). */
-export const DEFAULT_SPOT_SLUG = "itamambuca";
+export const DEFAULT_SPOT_SLUG = "arpoador";
 
 export const SPOT_SLUGS = Object.keys(SPOTS);
 
