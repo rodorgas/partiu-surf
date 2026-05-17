@@ -44,9 +44,11 @@ def _tide_lookup(lat: float, lon: float, date: str | None = None, days: int = 1)
 
     try:
         return fetch_tide_heights(lat, lon, date, days), tide_state, score_tide
-    except Exception:
-        # WorldTides outages should never break the forecast — degrade silently
-        # exactly like the Python CLI does.
+    except Exception as e:  # noqa: BLE001
+        # WorldTides outages should never break the forecast — degrade
+        # gracefully, but log so we notice when tides quietly drop out
+        # (e.g. read-only FS, API quota, network error).
+        print(f"tide_lookup failed: {type(e).__name__}: {e}", file=sys.stderr)
         return None
 
 
