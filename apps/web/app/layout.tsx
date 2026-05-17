@@ -20,7 +20,7 @@ const display = Bricolage_Grotesque({
 
 export const metadata: Metadata = {
   title: "partiu.surf",
-  description: "copiloto de surf pt-BR — swell, vento, maré e score honesto.",
+  description: "assistente de surf pt-BR — swell, vento, maré e score honesto.",
 };
 
 export const viewport: Viewport = {

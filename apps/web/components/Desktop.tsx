@@ -184,7 +184,7 @@ function ChatBubble({
 function TypingDots() {
   return (
     <span
-      aria-label="copiloto digitando"
+      aria-label="assistente digitando"
       data-testid="chat-typing"
       style={{ display: "inline-flex", gap: 4, alignItems: "center", padding: "2px 0" }}
     >
@@ -279,7 +279,7 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
           >
             partiu<span style={{ color: C.coral }}>.</span>surf
           </div>
-          <div style={{ fontSize: 11, color: C.inkDim, marginTop: 2 }}>copiloto · pt-BR</div>
+          <div style={{ fontSize: 11, color: C.inkDim, marginTop: 2 }}></div>
         </div>
       </div>
 
