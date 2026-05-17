@@ -1246,7 +1246,7 @@ function Hero({ data }: { data: Forecast }) {
   const windSummary = now
     ? `${now.wKmh} km/h ${dirLabel(now.wDir)}`
     : "—";
-  const tideSummary = now ? `${now.tideH.toFixed(1)}m ${now.tide}` : "—";
+  const tideSummary = now && now.hasTide ? `${now.tideH.toFixed(1)}m ${now.tide}` : "—";
   const waterSummary = data.spot.waterTemp
     ? `${data.spot.waterTemp.toFixed(1)}°C`
     : "—";
@@ -1447,32 +1447,38 @@ function HourTable({ data }: { data: Forecast }) {
               </span>
               <span style={{ textAlign: "right", color: r.gust > 25 ? C.red : C.inkDim }}>{r.gust}</span>
               <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <span>{r.tideH.toFixed(1)}m</span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    padding: "2px 6px",
-                    borderRadius: 999,
-                    fontWeight: 500,
-                    color: r.tide === "alta" ? C.coral : r.tide === "baixa" ? C.amber : C.teal,
-                    background:
-                      r.tide === "alta" ? "#fce6d6" : r.tide === "baixa" ? "#fbe6c2" : "#d8edf0",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  {r.tide === "subindo" ? (
-                    <ArrowUp size={11} />
-                  ) : r.tide === "descendo" ? (
-                    <ArrowDown size={11} />
-                  ) : r.tide === "alta" ? (
-                    <CircleDot size={11} />
-                  ) : (
-                    <Circle size={11} />
-                  )}
-                  {r.tide}
-                </span>
+                {r.hasTide ? (
+                  <>
+                    <span>{r.tideH.toFixed(1)}m</span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        padding: "2px 6px",
+                        borderRadius: 999,
+                        fontWeight: 500,
+                        color: r.tide === "alta" ? C.coral : r.tide === "baixa" ? C.amber : C.teal,
+                        background:
+                          r.tide === "alta" ? "#fce6d6" : r.tide === "baixa" ? "#fbe6c2" : "#d8edf0",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      {r.tide === "subindo" ? (
+                        <ArrowUp size={11} />
+                      ) : r.tide === "descendo" ? (
+                        <ArrowDown size={11} />
+                      ) : r.tide === "alta" ? (
+                        <CircleDot size={11} />
+                      ) : (
+                        <Circle size={11} />
+                      )}
+                      {r.tide}
+                    </span>
+                  </>
+                ) : (
+                  <span style={{ color: C.inkSoft }}>—</span>
+                )}
               </span>
               <span
                 style={{
@@ -1665,7 +1671,7 @@ function TideArc({ data, isToday }: { data: Forecast; isToday: boolean }) {
     return () => clearInterval(id);
   }, [isToday]);
 
-  const tideHours = data.hours.filter((r) => r.tideH > 0);
+  const tideHours = data.hours.filter((r) => r.hasTide);
   const w = 380,
     h = 150,
     pad = 14;
@@ -1957,7 +1963,7 @@ function SideCards({
   isToday: boolean;
   date: string;
 }) {
-  const tideHours = data.hours.filter((r) => r.tideH > 0);
+  const tideHours = data.hours.filter((r) => r.hasTide);
   const tideTitle =
     tideHours.length >= 2
       ? `Maré · ${tideHours[0].h}–${tideHours[tideHours.length - 1].h}`
