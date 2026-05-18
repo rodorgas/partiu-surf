@@ -11,6 +11,9 @@ vi.mock("next/navigation", () => ({
 describe("<Page /> (root)", () => {
   it("redirects to the default spot slug", async () => {
     const { default: Page } = await import("./page");
-    expect(() => Page()).toThrowError(/__REDIRECT__:\/itamambuca/);
+    const { DEFAULT_SPOT_SLUG } = await import("@/lib/spots");
+    expect(() => Page()).toThrowError(
+      new RegExp(`__REDIRECT__:/${DEFAULT_SPOT_SLUG}`),
+    );
   });
 });

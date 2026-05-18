@@ -6,6 +6,12 @@
       "memory": 512,
       "maxDuration": 15,
       "excludeFiles": "{.next,.pnpm-store,node_modules,.vercel,app,components,lib,public,scripts,tests}/**"
+    },
+    "api/climatology.py": {
+      "runtime": "@vercel/python@4.3.0",
+      "memory": 512,
+      "maxDuration": 30,
+      "excludeFiles": "{.next,.pnpm-store,node_modules,.vercel,app,components,lib,public,scripts,tests}/**"
     }
   }
 }

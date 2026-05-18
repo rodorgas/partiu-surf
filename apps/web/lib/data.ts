@@ -61,10 +61,16 @@ export type NearbySpot = {
 };
 
 export type Historic = {
+  /** Mean of each historical day's peak score (apples-to-apples with today's `PICO HOJE`). */
   avgScore: number;
+  /** Mean swell height at the peak hour of each historical day. */
   avgSwH: number;
+  /** Mean swell period at the peak hour of each historical day. */
   avgSwT: number;
-  note: string;
+  /** How many distinct days backed the averages (debug/quality signal). */
+  sampleDays?: number;
+  /** Number of past calendar-month years aggregated. */
+  yearsBack?: number;
 };
 
 export type Forecast = {
@@ -73,7 +79,8 @@ export type Forecast = {
   spots: NearbySpot[];
   suggestions: string[];
   welcome: string;
-  historic: Historic;
+  /** Null when no climatology is available (archive API miss, new spot, etc). */
+  historic: Historic | null;
 };
 
 const hours: ForecastHour[] = [
@@ -116,7 +123,6 @@ const historic: Historic = {
   avgScore: 6.1,
   avgSwH: 1.2,
   avgSwT: 9.5,
-  note: "hoje 32% acima da média de novembro",
 };
 
 const spot: Spot = {
