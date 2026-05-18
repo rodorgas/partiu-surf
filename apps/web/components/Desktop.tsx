@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import type { Forecast } from "@/lib/data";
-import { breakTypeLabel, dirLabel } from "@/lib/data";
+import { breakTypeLabel, dirLabel, resolveAutoGear } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
@@ -493,17 +493,25 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
 function GearPicker({
   spot,
   gear,
+  autoGear,
   date,
   today,
 }: {
   spot: string;
   gear: GearKey;
+  autoGear?: string | null;
   date: string;
   today: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const label = GEAR_LABELS[gear];
+  const resolvedAuto =
+    gear === "auto" && autoGear && autoGear in GEAR_LABELS
+      ? GEAR_LABELS[autoGear as GearKey]
+      : null;
+  const label = resolvedAuto
+    ? `${GEAR_LABELS[gear]} · ${resolvedAuto}`
+    : GEAR_LABELS[gear];
 
   useEffect(() => {
     if (!open) return;
@@ -1087,11 +1095,13 @@ function DatePicker({
 function TopBar({
   spot,
   gear,
+  autoGear,
   date,
   today,
 }: {
   spot: string;
   gear: GearKey;
+  autoGear?: string | null;
   date: string;
   today: string;
 }) {
@@ -1108,7 +1118,7 @@ function TopBar({
     >
       <SpotPicker key={spot} spot={spot} gear={gear} date={date} today={today} />
       <DatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
-      <GearPicker spot={spot} gear={gear} date={date} today={today} />
+      <GearPicker spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
     </div>
   );
 }
@@ -1544,6 +1554,7 @@ export function Desktop({
 }) {
   const t = today ?? todayISO();
   const d = date ?? t;
+  const autoGear = resolveAutoGear(data.hours);
   return (
     <div
       style={{
@@ -1557,7 +1568,7 @@ export function Desktop({
     >
       <ChatPanel data={data} spot={spot} />
       <main className="surf-desktop-main" style={{ flex: "1 1 auto", overflow: "auto" }}>
-        <TopBar spot={spot} gear={gear} date={d} today={t} />
+        <TopBar spot={spot} gear={gear} autoGear={autoGear} date={d} today={t} />
         <Hero data={data} />
         <HourTable data={data} isToday={d === t} />
         <SideCards data={data} isToday={d === t} date={d} variant="desktop" />
