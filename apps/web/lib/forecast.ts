@@ -91,18 +91,21 @@ export async function getForecast(
 
   const cacheKey = `${slug}:${date}:${gear}`;
 
-  // Climatology refreshes per calendar month, not per day — fetch it in
-  // parallel with the daily forecast and overlay it on the returned object
-  // so a stale daily cache doesn't hold back fresh historic data (or vice
-  // versa). Historic failures are non-fatal: the UI hides its card when null.
-  const [cached, historic] = await Promise.all([
-    safeGetCached(cacheKey),
-    safeGetHistoric(spot, date, gear),
+  // Kick off the cache check and historic fetch in parallel; the cache hit
+  // is fast (~50ms) so we wait for it before deciding whether to fire the
+  // forecast lambda — that avoids wasted Python invocations on cache hits
+  // while keeping the forecast on the cold-cache critical path parallel
+  // with historic (historic is the bottleneck at ~2.9s vs forecast ~1.4s).
+  const cacheP = safeGetCached(cacheKey);
+  const historicP = safeGetHistoric(spot, date, gear);
+
+  const cached = await cacheP;
+  if (cached) return { ...cached, historic: await historicP };
+
+  const [historic, raw] = await Promise.all([
+    historicP,
+    fetchRawForecast(spot, date, gear),
   ]);
-
-  if (cached) return { ...cached, historic };
-
-  const raw = await fetchRawForecast(spot, date, gear);
   const forecast = adaptRawToForecast(raw, spot, historic);
   await safeSetCached(cacheKey, forecast);
   return forecast;

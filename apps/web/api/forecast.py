@@ -14,6 +14,7 @@ Parity with `python -m surfcheck` is guaranteed because we import the same
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -175,9 +176,16 @@ def build_forecast(params: dict) -> dict:
     # (name, lat, lon, facing, shelter, break_type, tide_pref, size_tol)
     spot_tuple = (name, lat, lon, facing, shelter, break_type, tide_pref, size_tol)
 
-    marine = fetch_marine(lat, lon, date)
-    forecast_data = fetch_forecast(lat, lon, date)
-    tide = _tide_lookup(lat, lon, date, 1)
+    # Run the three upstream lookups in parallel — pure I/O, no shared state.
+    # Cuts cold-lambda latency from ~1.4s (3 sequential calls) to the slowest
+    # single call (~0.5s).
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        marine_f = ex.submit(fetch_marine, lat, lon, date)
+        forecast_f = ex.submit(fetch_forecast, lat, lon, date)
+        tide_f = ex.submit(_tide_lookup, lat, lon, date, 1)
+        marine = marine_f.result()
+        forecast_data = forecast_f.result()
+        tide = tide_f.result()
 
     tz = ZoneInfo(TZ)
     if date:

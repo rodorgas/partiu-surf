@@ -29,7 +29,7 @@ describe("<SpotPage />", () => {
     expect(slugs).toContain("arpoador");
   });
 
-  it("renders both desktop and mobile layouts with real forecast data", async () => {
+  it("renders the suspense shell with the spot name and kicks off the fetch", async () => {
     getForecastMock.mockResolvedValueOnce(MOCK_FORECAST);
     const mod = await import("./page");
     const SpotPage = mod.default;
@@ -38,9 +38,17 @@ describe("<SpotPage />", () => {
       searchParams: Promise.resolve({}),
     });
     const { container } = render(ui);
-    expect(container.querySelector(".layout-desktop")).not.toBeNull();
-    expect(container.querySelector(".layout-mobile")).not.toBeNull();
+    // The Suspense fallback (skeleton) renders synchronously and surfaces
+    // the spot name immediately — the fast-paint shell that fixes the
+    // cold-cache "blank page" experience. The post-fallback Desktop/Mobile
+    // render is covered by component tests + Playwright e2e since async
+    // server components don't auto-resolve under jsdom.
     expect(container.textContent).toContain("Itamambuca");
+    expect(getForecastMock).toHaveBeenCalledWith(
+      "itamambuca",
+      expect.any(String),
+      "auto",
+    );
   });
 
   it("threads ?gear= through to getForecast", async () => {
