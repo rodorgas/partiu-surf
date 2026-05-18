@@ -10,6 +10,7 @@ default to 3 years of lookback which keeps cold-start latency reasonable
 while smoothing out single-year anomalies (e.g. a freak storm month).
 """
 import calendar
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 import requests
@@ -26,8 +27,12 @@ FORECAST_HOURLY = "wind_speed_10m,wind_direction_10m,wind_gusts_10m"
 DEFAULT_YEARS_BACK = 3
 
 
-def _fetch_year_month(lat: float, lon: float, year: int, month: int):
-    """One year of the target calendar month — marine + atmosphere."""
+def _get_json(url: str, params: dict) -> dict:
+    return requests.get(url, params=params, timeout=10).json()
+
+
+def _year_params(lat: float, lon: float, year: int, month: int) -> tuple[dict, dict]:
+    """Open-Meteo query params for (marine, atmosphere) for a given month."""
     last_day = calendar.monthrange(year, month)[1]
     start, end = f"{year}-{month:02d}-01", f"{year}-{month:02d}-{last_day:02d}"
     common = {
@@ -37,17 +42,10 @@ def _fetch_year_month(lat: float, lon: float, year: int, month: int):
         "start_date": start,
         "end_date": end,
     }
-    marine = requests.get(
-        MARINE_ARCHIVE_URL,
-        params={**common, "hourly": MARINE_HOURLY},
-        timeout=10,
-    ).json()
-    forecast = requests.get(
-        FORECAST_ARCHIVE_URL,
-        params={**common, "hourly": FORECAST_HOURLY},
-        timeout=10,
-    ).json()
-    return marine, forecast
+    return (
+        {**common, "hourly": MARINE_HOURLY},
+        {**common, "hourly": FORECAST_HOURLY},
+    )
 
 
 def _aggregate(marine: dict, forecast: dict, spot_tuple: tuple, gear_key: str,
@@ -124,13 +122,30 @@ def compute_monthly_avg(
     lat = float(spot_tuple[1])
     lon = float(spot_tuple[2])
 
+    # Fan out all (years_back × 2) archive calls in parallel — these are pure
+    # I/O against Open-Meteo and benefit linearly from concurrency. Previously
+    # ran sequentially and dominated cold-cache TTFB (~2.9s on Vercel).
+    years = list(range(target.year - years_back, target.year))
+    requests_per_year = [_year_params(lat, lon, y, month) for y in years]
+    pairs: list[tuple[dict | None, dict | None]] = []
+    with ThreadPoolExecutor(max_workers=years_back * 2) as ex:
+        futures = []
+        for marine_params, forecast_params in requests_per_year:
+            futures.append((
+                ex.submit(_get_json, MARINE_ARCHIVE_URL, marine_params),
+                ex.submit(_get_json, FORECAST_ARCHIVE_URL, forecast_params),
+            ))
+        for marine_f, forecast_f in futures:
+            try:
+                pairs.append((marine_f.result(), forecast_f.result()))
+            except (requests.RequestException, ValueError):
+                # Open-Meteo blip — skip this year rather than failing the whole call.
+                pairs.append((None, None))
+
     total_n = 0
     sh_total = sp_total = sc_total = 0.0
-    for y in range(target.year - years_back, target.year):
-        try:
-            marine, forecast = _fetch_year_month(lat, lon, y, month)
-        except (requests.RequestException, ValueError):
-            # Open-Meteo blip — skip this year rather than failing the whole call.
+    for marine, forecast in pairs:
+        if marine is None or forecast is None:
             continue
         n, sh_s, sp_s, sc_s = _aggregate(
             marine, forecast, spot_tuple, gear_key, gear_profiles,

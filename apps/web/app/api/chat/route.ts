@@ -17,8 +17,6 @@ import { langfuse } from "@/lib/langfuse";
 import { distinctIdFromRequest, getPostHogServer } from "@/lib/posthog-server";
 import { getSpot } from "@/lib/spots";
 
-export const runtime = "nodejs";
-
 const TZ = "America/Sao_Paulo";
 
 const SYSTEM_PROMPT = `Você é o assistente do partiu.surf — um app de surf em pt-BR.

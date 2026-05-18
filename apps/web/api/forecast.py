@@ -14,6 +14,7 @@ Parity with `python -m surfcheck` is guaranteed because we import the same
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -175,9 +176,46 @@ def build_forecast(params: dict) -> dict:
     # (name, lat, lon, facing, shelter, break_type, tide_pref, size_tol)
     spot_tuple = (name, lat, lon, facing, shelter, break_type, tide_pref, size_tol)
 
-    marine = fetch_marine(lat, lon, date)
-    forecast_data = fetch_forecast(lat, lon, date)
-    tide = _tide_lookup(lat, lon, date, 1)
+    # API ownership: when the caller passes `tideHeights` / `marine` / `forecast`
+    # (each may be present independently), it has already handled the upstream
+    # API + Redis caching on the TS side. We use the payloads verbatim and skip
+    # the corresponding fetch. Anything missing falls back to a direct call —
+    # so the CLI and local dev (which pass none of these) keep working.
+    tide_heights_raw = params.get("tideHeights")
+    marine_raw = params.get("marine")
+    forecast_raw = params.get("forecast")
+
+    if tide_heights_raw is not None:
+        heights = json.loads(tide_heights_raw) if tide_heights_raw else {}
+        if heights:
+            from surfcheck.tides import score_tide, tide_state
+            tide = (heights, tide_state, score_tide)
+        else:
+            tide = None
+    else:
+        tide = None  # placeholder, filled by fetch path below
+
+    fetch_tasks = []
+    if marine_raw is None:
+        fetch_tasks.append(("marine", lambda: fetch_marine(lat, lon, date)))
+    if forecast_raw is None:
+        fetch_tasks.append(("forecast", lambda: fetch_forecast(lat, lon, date)))
+    if tide_heights_raw is None:
+        fetch_tasks.append(("tide", lambda: _tide_lookup(lat, lon, date, 1)))
+
+    if fetch_tasks:
+        with ThreadPoolExecutor(max_workers=len(fetch_tasks)) as ex:
+            futures = {name: ex.submit(fn) for name, fn in fetch_tasks}
+            results = {name: f.result() for name, f in futures.items()}
+        marine = results.get("marine") if "marine" in results else json.loads(marine_raw)
+        forecast_data = (
+            results.get("forecast") if "forecast" in results else json.loads(forecast_raw)
+        )
+        if "tide" in results:
+            tide = results["tide"]
+    else:
+        marine = json.loads(marine_raw)
+        forecast_data = json.loads(forecast_raw)
 
     tz = ZoneInfo(TZ)
     if date:

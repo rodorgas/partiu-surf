@@ -37,6 +37,10 @@ input, textarea {
   0%, 80%, 100% { opacity: .3; transform: translateY(0); }
   40% { opacity: 1; transform: translateY(-3px); }
 }
+@keyframes surf-skeleton-pulse {
+  0%, 100% { opacity: .7; }
+  50%      { opacity: 1; }
+}
 
 .layout-desktop { display: block; height: 100%; }
 .layout-mobile  { display: none;  height: 100%; }

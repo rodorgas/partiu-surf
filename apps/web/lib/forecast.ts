@@ -14,11 +14,13 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { getCached, getPermanent, setCached, setPermanent } from "./cache";
+import { getPermanent, setPermanent } from "./cache";
 import type { Forecast, ForecastHour, Historic, TideState } from "./data";
 import { MOCK_FORECAST } from "./data";
 import type { GearKey } from "./forecast-shared";
+import { getOpenMeteoData, type OpenMeteoData } from "./openmeteo";
 import { getSpot, type Spot } from "./spots";
+import { getTideHeights, type TideHeights } from "./tides";
 
 // Re-export client-safe helpers so server callers can keep importing
 // everything from `lib/forecast`. Client components must import directly
@@ -70,7 +72,6 @@ export type RawForecast = {
   gear: string;
 };
 
-const FORECAST_NAMESPACE = "forecast";
 const HISTORIC_NAMESPACE = "historic";
 
 /**
@@ -89,39 +90,48 @@ export async function getForecast(
   const spot = getSpot(slug);
   if (!spot) throw new Error(`unknown spot: ${slug}`);
 
-  const cacheKey = `${slug}:${date}:${gear}`;
+  // Cache lives at the *raw API* layer — one Redis entry per (slug, date)
+  // shared across every gear. Scoring is cheap (math over ~14 hours) so we
+  // recompute it per request rather than caching N gear variants. Tide and
+  // historic also have their own caches (see lib/tides.ts, getPermanent below).
+  const openMeteoP = safeGetOpenMeteo(spot, date);
+  const historicP = safeGetHistoric(spot, date, gear);
+  const tideP = safeGetTide(spot, date);
 
-  // Climatology refreshes per calendar month, not per day — fetch it in
-  // parallel with the daily forecast and overlay it on the returned object
-  // so a stale daily cache doesn't hold back fresh historic data (or vice
-  // versa). Historic failures are non-fatal: the UI hides its card when null.
-  const [cached, historic] = await Promise.all([
-    safeGetCached(cacheKey),
-    safeGetHistoric(spot, date, gear),
+  const [openMeteo, tide, historic] = await Promise.all([
+    openMeteoP,
+    tideP,
+    historicP,
   ]);
 
-  if (cached) return { ...cached, historic };
-
-  const raw = await fetchRawForecast(spot, date, gear);
+  // Lambda now takes raw inputs and just scores — Open-Meteo + WorldTides
+  // calls all happen on the TS side so they share a single Redis cache.
+  const raw = await fetchRawForecast(spot, date, gear, openMeteo, tide);
   const forecast = adaptRawToForecast(raw, spot, historic);
-  await safeSetCached(cacheKey, forecast);
   return forecast;
 }
 
-async function safeGetCached(key: string): Promise<Forecast | null> {
+async function safeGetOpenMeteo(
+  spot: Spot,
+  date: string,
+): Promise<OpenMeteoData | null> {
   try {
-    return await getCached<Forecast>(FORECAST_NAMESPACE, key);
+    return await getOpenMeteoData(spot.slug, spot.lat, spot.lon, date);
   } catch (err) {
-    if (!isRedisMisconfigured(err)) console.warn("getCached failed:", err);
+    console.warn("getOpenMeteoData failed:", err);
     return null;
   }
 }
 
-async function safeSetCached(key: string, value: Forecast): Promise<void> {
+async function safeGetTide(
+  spot: Spot,
+  date: string,
+): Promise<TideHeights | null> {
   try {
-    await setCached(FORECAST_NAMESPACE, key, value);
+    return await getTideHeights(spot.lat, spot.lon, date);
   } catch (err) {
-    if (!isRedisMisconfigured(err)) console.warn("setCached failed:", err);
+    console.warn("getTideHeights failed:", err);
+    return null;
   }
 }
 
@@ -180,8 +190,24 @@ export async function fetchRawForecast(
   spot: Spot,
   date: string,
   gear: GearKey = "auto",
+  openMeteo: OpenMeteoData | null = null,
+  tideHeights: TideHeights | null = null,
 ): Promise<RawForecast> {
   const payload = buildSpotPayload(spot, date, gear);
+  // Always pass `tideHeights` (even when empty) so the lambda knows TS
+  // owns the WorldTides call and doesn't fall back to its own fetch.
+  // Absent param ⇒ CLI/local-dev path inside the lambda.
+  (payload as Record<string, unknown>).tideHeights = JSON.stringify(
+    tideHeights ?? {},
+  );
+  // Same contract for Open-Meteo: when TS supplied the data (Redis-cached),
+  // pass it through and the lambda skips its own Open-Meteo fetch. When
+  // unavailable (e.g. fetch failed), omit so the lambda falls back to a
+  // direct call — degrades gracefully.
+  if (openMeteo) {
+    (payload as Record<string, unknown>).marine = JSON.stringify(openMeteo.marine);
+    (payload as Record<string, unknown>).forecast = JSON.stringify(openMeteo.atmo);
+  }
   return invokePython<RawForecast>("forecast", payload);
 }
 

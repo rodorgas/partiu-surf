@@ -149,21 +149,27 @@ describe("getForecast", () => {
     vi.restoreAllMocks();
   });
 
-  /** Route `fetch` calls based on which Python endpoint they target. */
+  /** Route `fetch` calls based on which endpoint they target. */
   function mockEndpoints(
     forecast: RawForecast,
     historic: { historic: unknown } = { historic: null },
+    openMeteo: unknown = { hourly: { time: [] } },
   ) {
     return vi
       .spyOn(globalThis, "fetch")
       .mockImplementation(async (input) => {
         const url = typeof input === "string" ? input : (input as URL | Request).toString();
-        const body = url.includes("/api/climatology") ? historic : forecast;
-        return new Response(JSON.stringify(body), { status: 200 });
+        if (url.includes("/api/climatology")) {
+          return new Response(JSON.stringify(historic), { status: 200 });
+        }
+        if (url.includes("open-meteo.com")) {
+          return new Response(JSON.stringify(openMeteo), { status: 200 });
+        }
+        return new Response(JSON.stringify(forecast), { status: 200 });
       });
   }
 
-  it("hits the network on cache miss and stores the result", async () => {
+  it("caches Open-Meteo + climatology across calls, but rescores per request", async () => {
     const raw = buildRawForecast();
     // Provide non-null historic so it is cached on the first call; otherwise
     // the climatology refetches every request and the cache-hit assertion
@@ -173,13 +179,22 @@ describe("getForecast", () => {
     });
 
     const out = await getForecast("itamambuca", "2026-05-11");
-    // One call per endpoint (forecast + climatology) on first request.
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    // First call: 2× Open-Meteo (marine + atmospheric) + 1× climatology +
+    // 1× scoring lambda = 4 fetches.
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
     expect(out.spot.todayPeak).toBe(8.9);
 
-    // Second call — daily and historic both cached, no further fetch.
+    // Second call: Open-Meteo and climatology are Redis-cached, so only the
+    // scoring lambda is called. Scoring runs per request (no scored cache).
+    fetchSpy.mockClear();
     const out2 = await getForecast("itamambuca", "2026-05-11");
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(
+      fetchSpy.mock.calls.some(([input]) => {
+        const url = typeof input === "string" ? input : (input as URL | Request).toString();
+        return url.includes("/api/forecast");
+      }),
+    ).toBe(true);
     expect(out2.spot.todayPeak).toBe(8.9);
   });
 

@@ -63,11 +63,22 @@ The `plan/` directory contains the original phased plan (scaffold → storage �
 
 ### Forecast pipeline (TS ↔ Python split)
 
-**Python owns fetch + row alignment + scoring. TS owns caching and view-model shape.** This avoids porting `cli._build_rows` to TS and keeps the math in one place.
+**TS owns API fetching + caching. Python owns scoring + row alignment.** Splitting on these lines keeps `cli._build_rows` and the scoring math in one place (Python, canonical) while letting Redis cache a single per-(slug, date) entry shared across every gear variant — see "Cache strategy" below.
 
-- `api/forecast.py` — Vercel Python function (`@vercel/python@4.3.0`, 512 MB, 15s). Imports the **vendored** `surfcheck/` package from `api/_vendored/surfcheck/` and emits JSON for `(spot, date, gear)`.
+- `api/forecast.py` — Vercel Python function (`@vercel/python@4.3.0`, 512 MB, 15s). Imports the **vendored** `surfcheck/` package from `api/_vendored/surfcheck/`. Accepts pre-fetched `marine` / `forecast` / `tideHeights` JSON in the request and skips its own API calls when provided; missing inputs fall back to direct fetches so the CLI and local dev still work. Returns scored hours.
 - `scripts/vendor-surfcheck.mjs` — copies repo-root `surfcheck/` → `api/_vendored/surfcheck/` on `predev`/`prebuild`. The vendored copy is gitignored (never committed); it's regenerated every build. Vercel's git integration clones the whole repo and the project's `rootDirectory` is set to `apps/web`, so the parent `surfcheck/` is visible at build time and the prebuild step finds it.
-- `lib/forecast.ts` — calls `/api/forecast` (via `VERCEL_PROJECT_PRODUCTION_URL` to bypass deployment protection, falling back to `VERCEL_URL`, then `localhost:3000`), caches the result in Upstash Redis (`lib/cache.ts`), and adapts the JSON into the `Forecast` shape the UI consumes. In local dev with no running route, it `spawnSync`s the Python function directly.
+- `lib/openmeteo.ts` — calls Open-Meteo marine + atmospheric APIs from TS, caches the raw responses in Upstash Redis as `openmeteo:{slug}:{date}` (12h today/future, permanent past). One entry per (slug, date), shared across gears.
+- `lib/tides.ts` — same pattern for WorldTides, namespace `tide:{lat0.1}_{lon0.1}:{date}`.
+- `lib/forecast.ts` — orchestrates: fetches raw data (Redis-cached) in parallel with climatology and tide, hands the lot to the Python lambda for scoring, adapts the response into the `Forecast` shape the UI consumes. In local dev with no running route, it `spawnSync`s the Python function directly.
+
+### Cache strategy
+
+**Redis stores raw API data only — scoring runs per request.** Gears are cheap to evaluate over a single day of hourly data, so we don't materialize N gear variants of a scored Forecast. The CDN handles per-URL caching of the rendered HTML (where the URL keys by gear/date naturally).
+
+- `openmeteo:{slug}:{date}` — raw marine + atmospheric JSON.
+- `tide:{lat0.1}_{lon0.1}:{date}` — raw WorldTides JSON. Deliberately NOT busted by `/api/refresh` — re-fetching historical tide burns WorldTides credits for the same numbers.
+- `historic:{slug}:{YYYY-MM}:{gear}` — monthly climatology, permanent.
+- No scored-Forecast cache.
 
 **Canonical scoring stays in `surfcheck/scoring.py`** — both the CLI and the web app import from it. Don't reimplement in TS without a deliberate decision to switch sources of truth.
 
@@ -104,10 +115,10 @@ Deploys go to the **personal** account, not work:
 The user's default `vercel` CLI auth points at their **work** account. To run CLI commands against this project, pass the personal token explicitly — it lives in the repo root at `.vercel-token` (gitignored, never commit). Pattern:
 
 ```bash
-_ZO_DOCTOR=0 vercel <cmd> --token "$(cat /Users/rodrigo.orem/Documents/personal/surf/.vercel-token)"
+vercel <cmd> --token "$(cat /Users/rodrigo.orem/Documents/personal/surf/.vercel-token)"
 ```
 
-The `_ZO_DOCTOR=0` prefix silences a zoxide warning that the CLI emits on stderr in this shell. Don't inline the token value in any committed file — re-read `.vercel-token` each time.
+Don't inline the token value in any committed file — re-read `.vercel-token` each time.
 
 ### Deployment gotchas
 
