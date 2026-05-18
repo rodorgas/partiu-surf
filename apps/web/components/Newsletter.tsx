@@ -1033,11 +1033,7 @@ export function NewsletterPopover({
         <path d="M0 10 L11 0 L22 10 Z" fill="#f6c98a" />
       </svg>
 
-      <div style={{ flex: "0 0 auto" }}>
-        <HorizonHeader width={POPOVER_WIDTH} showClose onClose={onClose} />
-      </div>
-
-      {/* Scrollable body — title + fields */}
+      {/* Scrollable body — header + title + fields */}
       <div
         style={{
           flex: "1 1 auto",
@@ -1045,6 +1041,8 @@ export function NewsletterPopover({
           overscrollBehavior: "contain",
         }}
       >
+        <HorizonHeader width={POPOVER_WIDTH} showClose onClose={onClose} />
+
         {/* Title */}
         <div style={{ padding: "14px 22px 6px" }}>
           <h3
@@ -1311,27 +1309,33 @@ export function NewsletterSheet({
           }}
         />
 
-        <HorizonHeader
-          width={420}
-          height={118}
-          showDragHandle
-          showClose
-          onClose={onClose}
-        />
-
-        {/* Body (scrolls — includes title) */}
+        {/* Body (scrolls — includes header + title) */}
         <div
           style={{
             flex: "1 1 auto",
             overflowY: "auto",
             overscrollBehavior: "contain",
             WebkitOverflowScrolling: "touch",
-            padding: "14px 20px 18px",
             display: "flex",
             flexDirection: "column",
-            gap: 18,
           }}
         >
+          <HorizonHeader
+            width={420}
+            height={118}
+            showDragHandle
+            showClose
+            onClose={onClose}
+          />
+
+          <div
+            style={{
+              padding: "14px 20px 18px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 18,
+            }}
+          >
           <div>
             <h3
               style={{
@@ -1410,6 +1414,7 @@ export function NewsletterSheet({
             query={query}
             setQuery={setQuery}
           />
+          </div>
         </div>
 
         {/* Sticky footer */}
