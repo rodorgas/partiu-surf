@@ -110,7 +110,7 @@ const suggestions: string[] = [
 ];
 
 const welcome =
-  "Oi! Sou o copiloto do partiu.surf. Posso te ajudar a decidir se vale a pena ir surfar — analiso swell, vento, maré e cruzo com o seu nível e equipamento. Procura um pico ali na direita ou me pergunta direto.";
+  "Oi! Sou o assistente do partiu.surf. Posso te ajudar a decidir se vale a pena ir surfar — analiso swell, vento, maré e cruzo com o seu nível e equipamento. Procura um pico ali na direita ou me pergunta direto.";
 
 const historic: Historic = {
   avgScore: 6.1,
