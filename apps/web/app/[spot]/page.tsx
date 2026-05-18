@@ -97,7 +97,11 @@ async function CachedSpot({
   today: string;
   isPast: boolean;
 }) {
-  "use cache";
+  // `: remote` writes to Vercel's Runtime Cache (regional, shared across
+  // Function instances). Plain `'use cache'` is in-memory only — each cold
+  // serverless instance re-renders, which defeats the whole point on a
+  // request-time-resolved page.
+  "use cache: remote";
   // Split per-branch so each call passes a string literal — cacheLife's
   // overloads only resolve one literal at a time.
   if (isPast) cacheLife("forecastArchive");

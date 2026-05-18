@@ -73,7 +73,7 @@ The page splits into three components by who reads what:
 | `ResolveAndCache` | inside Suspense | `searchParams`, `todayISO()`           |
 | `CachedSpot`      | `'use cache'`   | only serialized props from the parent  |
 
-`CachedSpot` is the cache cell. It wraps the rendered Desktop + Mobile DOM in `'use cache'` keyed by `(slug, gear, date, today, isPast)` and attaches three nested tags:
+`CachedSpot` is the cache cell. It wraps the rendered Desktop + Mobile DOM in `'use cache: remote'` (Vercel's per-region Runtime Cache — `'use cache'` alone is in-memory per Function instance and doesn't survive cold starts on serverless) keyed by `(slug, gear, date, today, isPast)` and attaches three nested tags:
 
 - `forecast` — full bust
 - `forecast:{slug}` — single-spot bust
