@@ -7,6 +7,7 @@
 import { useCallback, useRef, useState } from "react";
 import { ChevronsUp, Send, Sparkles, X } from "lucide-react";
 import type { Forecast } from "@/lib/data";
+import { resolveAutoGear } from "@/lib/data";
 import {
   C,
   AppBar,
@@ -52,10 +53,11 @@ function Body({
   date: string;
   today: string;
 }) {
+  const autoGear = resolveAutoGear(data.hours);
   return (
     <>
       <AppBar spot={spot} gear={gear} date={date} today={today} />
-      <FilterChips spot={spot} gear={gear} date={date} today={today} />
+      <FilterChips spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
       <div style={{ height: 12 }} />
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />

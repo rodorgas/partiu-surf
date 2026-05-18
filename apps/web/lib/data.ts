@@ -17,6 +17,28 @@ export type ForecastHour = {
   tide: TideState;
   hasTide?: boolean;
   flag: string;
+  // The gear key the scorer selected for this hour. Only varies per-hour when
+  // gear=auto; mirrors any explicit gear otherwise. Optional because the mock
+  // dataset and pre-2026-05 cached payloads predate this field.
+  winner?: string;
+};
+
+/**
+ * When gear=auto, returns the gear that wins the highest-scoring hour — the
+ * practical "if you go surf, take this" pick. Falls back to the modal winner
+ * when the peak hour has no winner. Null if no hour carries the field.
+ */
+export const resolveAutoGear = (hours: ForecastHour[]): string | null => {
+  if (!hours.length) return null;
+  let peak = hours[0];
+  for (const h of hours) if (h.score > peak.score) peak = h;
+  if (peak.winner) return peak.winner;
+  const counts: Record<string, number> = {};
+  for (const h of hours) if (h.winner) counts[h.winner] = (counts[h.winner] ?? 0) + 1;
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [k, n] of Object.entries(counts)) if (n > bestN) { best = k; bestN = n; }
+  return best;
 };
 
 export type Spot = {
