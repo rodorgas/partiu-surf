@@ -334,11 +334,11 @@ function TideArc({ data, isToday }: { data: Forecast; isToday: boolean }) {
         <g>
           {lows.map((i) => (
             <g key={`lo${i}`}>
-              <circle cx={pts[i].x} cy={pts[i].y} r="3" fill={C.amber} />
+              <circle cx={pts[i].x} cy={pts[i].y} r="3.5" fill={C.amber} />
               <text
                 x={clampLabelX(pts[i].x, "middle")}
-                y={pts[i].y + 18}
-                fontSize="10"
+                y={pts[i].y + 22}
+                fontSize="14"
                 fill={C.amber}
                 textAnchor="middle"
                 fontFamily={C.sans}
@@ -350,11 +350,11 @@ function TideArc({ data, isToday }: { data: Forecast; isToday: boolean }) {
           ))}
           {highs.map((i) => (
             <g key={`hi${i}`}>
-              <circle cx={pts[i].x} cy={pts[i].y} r="3" fill={C.coral} />
+              <circle cx={pts[i].x} cy={pts[i].y} r="3.5" fill={C.coral} />
               <text
                 x={clampLabelX(pts[i].x, "middle")}
-                y={pts[i].y - 8}
-                fontSize="10"
+                y={pts[i].y - 10}
+                fontSize="14"
                 fill={C.coral}
                 textAnchor="middle"
                 fontFamily={C.sans}
@@ -376,12 +376,12 @@ function TideArc({ data, isToday }: { data: Forecast; isToday: boolean }) {
               strokeDasharray="3 3"
               strokeWidth="1"
             />
-            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="5" fill={C.deep} />
-            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="9" fill={C.deep} fillOpacity="0.18" />
+            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="5.5" fill={C.deep} />
+            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="10" fill={C.deep} fillOpacity="0.18" />
             <text
               x={clampLabelX(pts[nowIdx].x + 8, "start")}
-              y={pad + 12}
-              fontSize="11"
+              y={pad + 14}
+              fontSize="14"
               fontFamily={C.sans}
               fontWeight="700"
               fill={C.deep}
@@ -398,7 +398,7 @@ function TideArc({ data, isToday }: { data: Forecast; isToday: boolean }) {
               key={t}
               x={pts[i].x}
               y={h - 4}
-              fontSize="10"
+              fontSize="12"
               textAnchor="middle"
               fill={C.inkSoft}
               fontFamily={C.sans}
