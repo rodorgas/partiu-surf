@@ -59,7 +59,7 @@ function Body({
       <div style={{ height: 12 }} />
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />
-      <HourList rows={data.hours} />
+      <HourList rows={data.hours} isToday={date === today} />
       <ScoreMethodology variant="mobile" />
       <SideCards data={data} isToday={date === today} date={date} variant="mobile" />
       <div style={{ height: 240 }} />
