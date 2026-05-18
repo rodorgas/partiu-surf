@@ -164,8 +164,7 @@ export const NewsletterTrigger = forwardRef<
           />
         </svg>
       </span>
-      {!compact && <span>Newsletter</span>}
-      {compact && <span>News</span>}
+      <span>Boletim</span>
       <span
         style={{
           marginLeft: 2,
@@ -794,7 +793,7 @@ function HorizonHeader({
           textShadow: "0 1px 2px rgba(0,0,0,0.22)",
         }}
       >
-        partiu · newsletter
+        partiu · boletim
       </div>
       {showClose && (
         <button
@@ -966,7 +965,7 @@ export function NewsletterPopover({
     <div
       ref={rootRef}
       role="dialog"
-      aria-label="Inscrever-se na newsletter"
+      aria-label="Inscrever-se no boletim"
       data-testid="newsletter-popover"
       style={{
         position: "fixed",
@@ -1164,7 +1163,7 @@ export function NewsletterSheet({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="Inscrever-se na newsletter"
+      aria-label="Inscrever-se no boletim"
       data-testid="newsletter-sheet"
       style={{
         position: "fixed",
