@@ -45,6 +45,7 @@ function buildRawForecast(overrides?: Partial<RawForecast>): RawForecast {
         tide: "subindo",
         hasTide: false,
         flag: "",
+        winner: "shortboard",
       },
     ],
     hasTide: false,

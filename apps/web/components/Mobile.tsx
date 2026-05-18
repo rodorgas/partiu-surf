@@ -7,6 +7,7 @@
 import { useCallback, useRef, useState } from "react";
 import { ChevronsUp, Send, Sparkles, X } from "lucide-react";
 import type { Forecast } from "@/lib/data";
+import { resolveAutoGear } from "@/lib/data";
 import {
   C,
   AppBar,
@@ -18,6 +19,7 @@ import {
 import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
+import { SideCards } from "@/components/SideCards";
 import type { GearKey } from "@/lib/forecast-shared";
 import { todayISO } from "@/lib/date";
 
@@ -51,15 +53,17 @@ function Body({
   date: string;
   today: string;
 }) {
+  const autoGear = resolveAutoGear(data.hours);
   return (
     <>
       <AppBar spot={spot} gear={gear} date={date} today={today} />
-      <FilterChips spot={spot} gear={gear} date={date} today={today} />
+      <FilterChips spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
       <div style={{ height: 12 }} />
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />
-      <HourList rows={data.hours} />
+      <HourList rows={data.hours} isToday={date === today} />
       <ScoreMethodology variant="mobile" />
+      <SideCards data={data} isToday={date === today} date={date} variant="mobile" />
       <div style={{ height: 240 }} />
     </>
   );
