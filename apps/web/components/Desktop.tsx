@@ -1143,7 +1143,13 @@ function Pill({ icon, label, v, tone, sub }: { icon: React.ReactNode; label: str
   );
 }
 
-function ScoreWedge({ score }: { score: number }) {
+function ScoreWedge({
+  score,
+  historic,
+}: {
+  score: number;
+  historic: Forecast["historic"];
+}) {
   const w = 220,
     h = 132;
   const cx = w / 2,
@@ -1155,6 +1161,20 @@ function ScoreWedge({ score }: { score: number }) {
   const y2 = cy - r * Math.sin(ang);
   const ink = scoreInk(score);
   const largeArc = 0;
+  const tier =
+    score >= 7
+      ? { label: "dia bom", color: C.green }
+      : score >= 4
+        ? { label: "dia médio", color: C.amber }
+        : { label: "dia ruim", color: C.coral };
+  const delta =
+    historic && historic.avgScore > 0
+      ? Math.round(((score - historic.avgScore) / historic.avgScore) * 100)
+      : null;
+  const comparison =
+    delta === null
+      ? null
+      : `${Math.abs(delta)}% ${delta >= 0 ? "acima" : "abaixo"} da média`;
   return (
     <div style={{ flex: "0 0 auto", textAlign: "center" }}>
       <svg viewBox={`0 0 ${w} ${h}`} width="220" height="132">
@@ -1221,8 +1241,8 @@ function ScoreWedge({ score }: { score: number }) {
         style={{
           marginTop: 6,
           padding: "4px 10px",
-          background: `${C.green}1a`,
-          color: C.green,
+          background: `${tier.color}1a`,
+          color: tier.color,
           fontSize: 11.5,
           fontWeight: 600,
           borderRadius: 999,
@@ -1231,7 +1251,8 @@ function ScoreWedge({ score }: { score: number }) {
           gap: 6,
         }}
       >
-        <Circle size={10} fill={C.green} color={C.green} /> dia bom · 32% acima da média
+        <Circle size={10} fill={tier.color} color={tier.color} /> {tier.label}
+        {comparison ? ` · ${comparison}` : null}
       </div>
     </div>
   );
@@ -1323,7 +1344,7 @@ function Hero({ data }: { data: Forecast }) {
           </div>
 
           <div className="surf-hero-wedge">
-            <ScoreWedge score={data.spot.todayPeak} />
+            <ScoreWedge score={data.spot.todayPeak} historic={data.historic} />
           </div>
         </div>
       </div>
@@ -1850,6 +1871,22 @@ const MONTH_FMT = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: TZ
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
 function Hist({ data, date }: { data: Forecast; date: string }) {
+  if (!data.historic) {
+    return (
+      <div
+        style={{
+          height: 150,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: C.inkDim,
+          fontSize: 13,
+        }}
+      >
+        sem dados históricos
+      </div>
+    );
+  }
   const peakIdx = data.hours.reduce(
     (best, h, i, arr) => (h.score > arr[best].score ? i : best),
     0,

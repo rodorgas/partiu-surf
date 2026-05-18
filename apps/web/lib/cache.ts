@@ -8,8 +8,9 @@ import { Redis } from "@upstash/redis";
  *   - Today/future → cache valid for 12h via Redis TTL.
  *
  * Key namespacing convention (consumed by phase 3):
- *   forecast:{spot}:{YYYY-MM-DD}   marine + atmospheric forecast
- *   tide:{spot}:{YYYY-MM-DD}       tide heights (when WorldTides is enabled)
+ *   forecast:{spot}:{YYYY-MM-DD}        marine + atmospheric forecast
+ *   tide:{spot}:{YYYY-MM-DD}            tide heights (when WorldTides is enabled)
+ *   historic:{spot}:{YYYY-MM}:{gear}    monthly climatology (permanent)
  */
 
 export const redis = Redis.fromEnv();
@@ -46,6 +47,15 @@ export async function setCached<T>(
   } else {
     await redis.set(key, data, { ex: TODAY_TTL_S });
   }
+}
+
+/** Get/set without date-based TTL — used for climatology that stays stable per calendar month. */
+export async function getPermanent<T>(key: string): Promise<T | null> {
+  return redis.get<T>(key);
+}
+
+export async function setPermanent<T>(key: string, data: T): Promise<void> {
+  await redis.set(key, data);
 }
 
 export async function invalidate(
