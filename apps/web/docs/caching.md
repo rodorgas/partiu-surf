@@ -2,20 +2,25 @@
 
 ## Principles
 
-1. **Cache the upstream API data, not the score.** Open-Meteo and WorldTides are slow, paid, and rate-limited. Scoring is local math over ~14 hours of data — cheap to redo on every request.
+1. **Cache the upstream API data, not the score.** Open-Meteo is rate-limited; WorldTides is rate-limited and bills per request. Both are network-bound. Scoring is local math over 24 hours of data — cheap to redo on every request.
 2. **One Redis entry per (slug, date), shared across gears.** Users switch gears frequently; we don't want N gear variants in Redis when a single raw payload feeds all of them.
-3. **CDN owns per-URL caching.** Search params (`?gear=…&date=…`) already key the rendered HTML naturally at the CDN layer, so we don't duplicate that responsibility in Redis.
+3. **The framework owns per-variant rendered caching.** Cache Components (`'use cache'`) keys the rendered RSC payload by `(slug, gear, date, today, isPast)` — the CDN serves the prerendered shell, the framework cache fills the dynamic hole. We don't duplicate that responsibility in Redis.
 4. **Fail open.** Redis is best-effort. When env vars are missing or Upstash errors out, we degrade to a direct API call — the page still renders.
 
 ## Layers
 
 ```
                 ┌──────────────────────┐
-                │  CDN (Vercel edge)   │  HTML per URL = (slug, gear, date)
+                │  CDN (Vercel edge)   │  prerendered shell per (slug)
+                └──────────┬───────────┘
+                           │ shell HIT, dynamic hole streams
+                ┌──────────▼───────────┐
+                │  Cache Components    │  RSC payload per
+                │  ('use cache')       │  (slug, gear, date, today, isPast)
                 └──────────┬───────────┘
                            │ miss
                 ┌──────────▼───────────┐
-                │  Next.js server      │  scoring runs here per request
+                │  Next.js server      │  scoring runs here per cache miss
                 └──────────┬───────────┘
                            │ Redis lookup (raw API data only)
                 ┌──────────▼───────────┐
@@ -44,8 +49,8 @@ Past-date entries are permanent because historical forecasts don't change retroa
 
 ## What is *not* cached in Redis
 
-- **Scored Forecasts.** No `forecast:{slug}:{date}:{gear}` entry. Scoring is per-request. Caching this would create one entry per (slug, date, gear) — five gears × eight spots × seven days = 280 entries that all derive from 56 raw entries. The CDN handles per-URL caching where it belongs.
-- **Adapted view-model.** `adaptRawToForecast` runs every request — same reasoning as scoring.
+- **Scored Forecasts.** No `forecast:{slug}:{date}:{gear}` entry in Redis. Scoring runs per cache miss. The per-variant cache lives one layer up in Cache Components (`'use cache'` on `CachedSpot`), which caches the *rendered RSC payload* keyed by `(slug, gear, date, today, isPast)`. Two layers, one job — Redis holds raw upstream data shared across gears; Cache Components holds the final HTML/RSC.
+- **Adapted view-model.** `adaptRawToForecast` runs every cache miss — same reasoning as scoring.
 
 ## The Python lambda
 
@@ -58,27 +63,49 @@ This means the lambda is independently usable; the TS cache is an optimization l
 
 ## Page-level CDN caching
 
-`app/[spot]/page.tsx` sets `export const revalidate = 3600` and `generateStaticParams` lists all known spot slugs. With no search params, the route is statically generated and cached at the edge for 1h, then revalidated.
+`app/[spot]/page.tsx` opts into Next 16 Cache Components (`cacheComponents: true` in `next.config.ts`). The route is shaped for Partial Prerender (PPR): a static shell prerenders for every slug listed in `generateStaticParams`, and a `<Suspense>`-wrapped dynamic hole resolves the request-time variant.
 
-`await searchParams` makes the route dynamically rendered, so `?gear=…&date=…` variants are not CDN-cached today. Two paths to fix that, neither implemented yet:
+The page splits into three components by who reads what:
 
-- **Path-based URLs** (`/{spot}/{date}/{gear}`) — every variant becomes a static segment, fully CDN-cacheable.
-- **Cache Components / `'use cache'`** — keep search params, wrap the data layer with `'use cache'` so the framework cache + CDN handle the variants.
+| Component         | Where it runs   | Reads                                  |
+| ----------------- | --------------- | -------------------------------------- |
+| `SpotPage`        | shell           | `params` (build-time-known)            |
+| `ResolveAndCache` | inside Suspense | `searchParams`, `todayISO()`           |
+| `CachedSpot`      | `'use cache'`   | only serialized props from the parent  |
 
-Until one of those lands, gear/date switches fall through to `<Suspense>` + skeleton on the cold path. That's acceptable: the most common access pattern is the default URL (`/{spot}`), which does get CDN-cached.
+`CachedSpot` is the cache cell. It wraps the rendered Desktop + Mobile DOM in `'use cache'` keyed by `(slug, gear, date, today, isPast)` and attaches three nested tags:
+
+- `forecast` — full bust
+- `forecast:{slug}` — single-spot bust
+- `forecast:{slug}:{date}` — single (spot, date) bust across all gears
+
+Cache lifetime branches on `isPast`:
+
+| Profile           | stale | revalidate | expire  | When                  |
+| ----------------- | ----- | ---------- | ------- | --------------------- |
+| `forecastFresh`   | 60s   | 1h         | 1d      | today / future        |
+| `forecastArchive` | 5m    | 30d        | 365d    | past dates            |
+
+`'use cache'` forbids reading `searchParams`/`cookies`/`headers` inside the cached scope, so `ResolveAndCache` does those reads outside and hands `CachedSpot` only serialized primitives. The Suspense fallback uses `<SpotSkeleton spot={spot} />` — gear/date/today are optional on the skeleton precisely so the prerendered shell doesn't depend on request-time data.
+
+On warm hits the CDN serves the cached RSC payload directly with no skeleton flash. On cold misses the shell streams immediately, the dynamic hole resolves through Redis → scoring lambda → cached, and subsequent hits for that variant land on the CDN.
 
 ## On-demand invalidation
 
-`POST /api/refresh` (gated by `x-refresh-secret`) clears the cache:
+`POST /api/refresh` (gated by `x-refresh-secret`) clears both the raw Redis cache and the CDN/RSC cache, with granularity that follows the cache tags:
 
-- No body, or empty body → flush all `openmeteo:*` keys.
-- `{ slug }` → flush all `openmeteo:*` (no single-spot wildcard helper yet; the namespace is small enough that a full flush is fine).
-- `{ slug, date }` → delete the single `openmeteo:{slug}:{date}` key.
+| Body              | Redis                                    | `revalidateTag`                       |
+| ----------------- | ---------------------------------------- | ------------------------------------- |
+| empty / no body   | flush all `openmeteo:*`                  | `forecast`                            |
+| `{ slug }`        | flush all `openmeteo:*`                  | `forecast:{slug}`                     |
+| `{ slug, date }`  | delete `openmeteo:{slug}:{date}` only    | `forecast:{slug}:{date}`              |
 
-Every call also fires `revalidateTag("forecast", "max")` so any Next.js framework-cached HTML evicts. Tide entries are **never** busted by this route (see note above).
+All `revalidateTag` calls use the `"max"` profile (SWR — the tag is marked stale and the next request triggers a background refresh). Tide entries are **never** busted by this route (see note above).
 
-Used by:
-- Daily cron after Open-Meteo's nightly model update.
+The Redis-side namespace flush for `{ slug }` is broader than the tag bust — there's no single-spot Redis wildcard helper yet. Fine because the namespace is small and refresh runs at most a few times a day.
+
+Intended use:
+- Daily refresh after Open-Meteo's nightly model update. There's no `crons` entry in `vercel.json` today; the endpoint is ready, but the schedule has to be wired separately (Vercel Cron, external scheduler, or a `crons` block here).
 - Manual ops when a deploy ships a scoring tweak and we want fresh numbers.
 
 ## Failure modes and degradation
@@ -101,4 +128,6 @@ The earlier strategy cached scored Forecasts per (slug, date, gear) directly. Th
 2. **Stale-on-deploy.** A scoring tweak required busting every entry; the lambda would re-derive the same scores from the same upstream data.
 3. **Wasted upstream.** A user opening the page on gear A and then gear B fetched Open-Meteo twice (once per cached entry's cold path), even though the two scores came from the same raw data.
 
-Moving the cache one layer up — to the raw API responses — fixes all three. Scoring re-runs on every page render but it's local math; the slow tails are the API roundtrips, which are exactly what we now share.
+Moving the cache one layer up — to the raw API responses — fixes all three. Scoring runs whenever the Cache Components layer misses, but it's local math; the slow tails are the API roundtrips, which are exactly what we now share.
+
+Cache Components on top of that handles the per-variant rendered output — it's the right layer for "this exact URL produced this exact HTML," granular bust by tag, and the upside of warm hits paying neither scoring nor Redis lookup.

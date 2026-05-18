@@ -50,19 +50,20 @@ export async function POST(req: Request) {
   if (slug && date) {
     // Raw Open-Meteo keys are `openmeteo:${slug}:${date}` — exact match.
     await invalidate(`${NAMESPACE}:${slug}`, date);
+    revalidateTag(`${TAG}:${slug}:${date}`, "max");
   } else if (slug) {
     // No single-spot wildcard helper yet — fall back to a full namespace flush.
     // Fine because the namespace is small and refresh runs at most a few times
     // a day. Tighten if we ever cache hundreds of spot:date keys.
     await invalidate(NAMESPACE);
+    revalidateTag(`${TAG}:${slug}`, "max");
   } else {
     await invalidate(NAMESPACE);
+    // Tag-based ISR bust — page renders that opt into cache tags via
+    // 'use cache' get evicted here. Next 16's revalidateTag requires a
+    // CacheLife profile; 'max' = expire ASAP.
+    revalidateTag(TAG, "max");
   }
-
-  // Tag-based ISR bust — page renders that opt into cache tags via
-  // unstable_cache / 'use cache' get evicted here. Next 16's revalidateTag
-  // requires a CacheLife profile; 'max' = expire ASAP.
-  revalidateTag(TAG, "max");
 
   return Response.json({ ok: true, slug: slug ?? null, date: date ?? null });
 }

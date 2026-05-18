@@ -344,14 +344,19 @@ function MobileSkeleton({
   today,
 }: {
   spot: string;
-  gear: GearKey;
-  date: string;
-  today: string;
+  gear?: GearKey;
+  date?: string;
+  today?: string;
 }) {
   const meta = SPOTS[spot];
   const name = meta?.name ?? spot;
   const breakType = meta?.breakType ?? "beach";
   const facing = meta?.facing ?? 0;
+  // AppBar + FilterChips need gear/date/today; under PPR the outer Suspense
+  // fallback only has `spot` available (the rest are request-time). Render
+  // them only when caller supplies the values — keeps the prerendered shell
+  // clean and the in-flight fallback identical to today.
+  const hasChrome = gear !== undefined && date !== undefined && today !== undefined;
 
   return (
     <div
@@ -368,8 +373,12 @@ function MobileSkeleton({
       }}
     >
       <div style={{ height: "100%", overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-        <AppBar spot={spot} gear={gear} date={date} today={today} />
-        <FilterChips spot={spot} gear={gear} date={date} today={today} />
+        {hasChrome ? (
+          <>
+            <AppBar spot={spot} gear={gear} date={date} today={today} />
+            <FilterChips spot={spot} gear={gear} date={date} today={today} />
+          </>
+        ) : null}
         <div style={{ height: 12 }} />
         <MobileSummaryCard spotName={name} breakType={breakType} facing={facing} />
         <div style={{ height: 12 }} />
@@ -856,9 +865,9 @@ export function SpotSkeleton({
   today,
 }: {
   spot: string;
-  gear: GearKey;
-  date: string;
-  today: string;
+  gear?: GearKey;
+  date?: string;
+  today?: string;
 }) {
   return (
     <>
