@@ -7,8 +7,6 @@
 
 import { confirm } from "@/lib/subscriptions";
 
-export const runtime = "nodejs";
-
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const token = url.searchParams.get("token");

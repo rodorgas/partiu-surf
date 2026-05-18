@@ -23,8 +23,6 @@
 import { clientId, subscribeLimiter } from "@/lib/ratelimit";
 import { createPending } from "@/lib/subscriptions";
 
-export const runtime = "nodejs";
-
 export async function POST(req: Request) {
   const id = clientId(req);
   const { success, remaining, reset } = await subscribeLimiter.limit(id);
