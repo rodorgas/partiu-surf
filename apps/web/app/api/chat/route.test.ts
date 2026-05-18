@@ -77,7 +77,7 @@ vi.mock("@/lib/forecast", () => ({
     spots: [],
     suggestions: ["q?"],
     welcome: "hi",
-    historic: { avgScore: 6, avgSwH: 1, avgSwT: 9, note: "n" },
+    historic: { avgScore: 6, avgSwH: 1, avgSwT: 9 },
     _date: date,
   })),
 }));

@@ -66,12 +66,36 @@ describe("adaptRawToForecast", () => {
     expect(h.wDir).toBe(230);
   });
 
-  it("falls back to mock metadata for chat/historic until later phases", () => {
+  it("falls back to mock metadata for chat suggestions until later phases", () => {
     const raw = buildRawForecast();
     const out = adaptRawToForecast(raw, SPOTS.itamambuca);
     expect(out.suggestions.length).toBeGreaterThan(0);
     expect(out.spot.todayPeak).toBe(8.9);
     expect(out.spot.region).toBe("Ubatuba · SP");
+  });
+
+  it("defaults historic to null when no climatology is supplied", () => {
+    const raw = buildRawForecast();
+    const out = adaptRawToForecast(raw, SPOTS.itamambuca);
+    expect(out.historic).toBeNull();
+  });
+
+  it("passes through historic when provided", () => {
+    const raw = buildRawForecast();
+    const out = adaptRawToForecast(raw, SPOTS.itamambuca, {
+      avgScore: 5.5,
+      avgSwH: 1.1,
+      avgSwT: 10.2,
+      sampleDays: 90,
+      yearsBack: 3,
+    });
+    expect(out.historic).toEqual({
+      avgScore: 5.5,
+      avgSwH: 1.1,
+      avgSwT: 10.2,
+      sampleDays: 90,
+      yearsBack: 3,
+    });
   });
 });
 
@@ -125,22 +149,56 @@ describe("getForecast", () => {
     vi.restoreAllMocks();
   });
 
+  /** Route `fetch` calls based on which Python endpoint they target. */
+  function mockEndpoints(
+    forecast: RawForecast,
+    historic: { historic: unknown } = { historic: null },
+  ) {
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input) => {
+        const url = typeof input === "string" ? input : (input as URL | Request).toString();
+        const body = url.includes("/api/climatology") ? historic : forecast;
+        return new Response(JSON.stringify(body), { status: 200 });
+      });
+  }
+
   it("hits the network on cache miss and stores the result", async () => {
     const raw = buildRawForecast();
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify(raw), { status: 200 }),
-      );
+    // Provide non-null historic so it is cached on the first call; otherwise
+    // the climatology refetches every request and the cache-hit assertion
+    // below would never hold.
+    const fetchSpy = mockEndpoints(raw, {
+      historic: { avgScore: 5, avgSwH: 1, avgSwT: 9 },
+    });
 
     const out = await getForecast("itamambuca", "2026-05-11");
-    expect(fetchSpy).toHaveBeenCalledOnce();
+    // One call per endpoint (forecast + climatology) on first request.
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(out.spot.todayPeak).toBe(8.9);
 
-    // Second call — cache hit, no further fetch.
+    // Second call — daily and historic both cached, no further fetch.
     const out2 = await getForecast("itamambuca", "2026-05-11");
-    expect(fetchSpy).toHaveBeenCalledOnce();
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(out2.spot.todayPeak).toBe(8.9);
+  });
+
+  it("threads historic through to the returned Forecast when climatology returns it", async () => {
+    const raw = buildRawForecast();
+    const histPayload = {
+      historic: { avgScore: 5.5, avgSwH: 1.1, avgSwT: 10, sampleDays: 90, yearsBack: 3 },
+    };
+    mockEndpoints(raw, histPayload);
+
+    const out = await getForecast("itamambuca", "2026-05-11");
+    expect(out.historic).toEqual(histPayload.historic);
+  });
+
+  it("treats a null climatology response as missing historic", async () => {
+    const raw = buildRawForecast();
+    mockEndpoints(raw, { historic: null });
+    const out = await getForecast("itamambuca", "2026-05-11");
+    expect(out.historic).toBeNull();
   });
 
   it("throws on unknown spot", async () => {
@@ -156,19 +214,20 @@ describe("getForecast", () => {
     const raw2 = buildRawForecast({
       spot: { ...buildRawForecast().spot, todayPeak: 6.1 },
     });
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify(raw1), { status: 200 }),
-    );
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify(raw2), { status: 200 }),
-    );
+    let current = raw1;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const url = typeof input === "string" ? input : (input as URL | Request).toString();
+      if (url.includes("/api/climatology")) {
+        return new Response(JSON.stringify({ historic: null }), { status: 200 });
+      }
+      return new Response(JSON.stringify(current), { status: 200 });
+    });
 
     const day1 = await getForecast("itamambuca", "2026-05-11");
+    current = raw2;
     const day2 = await getForecast("itamambuca", "2026-05-12");
 
     expect(day1.spot.todayPeak).toBe(8.9);
     expect(day2.spot.todayPeak).toBe(6.1);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 });

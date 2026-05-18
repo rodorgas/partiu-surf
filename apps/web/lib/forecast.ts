@@ -14,8 +14,8 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { getCached, setCached } from "./cache";
-import type { Forecast, ForecastHour, TideState } from "./data";
+import { getCached, getPermanent, setCached, setPermanent } from "./cache";
+import type { Forecast, ForecastHour, Historic, TideState } from "./data";
 import { MOCK_FORECAST } from "./data";
 import type { GearKey } from "./forecast-shared";
 import { getSpot, type Spot } from "./spots";
@@ -71,6 +71,7 @@ export type RawForecast = {
 };
 
 const FORECAST_NAMESPACE = "forecast";
+const HISTORIC_NAMESPACE = "historic";
 
 /**
  * Public entry point — used by app/[spot]/page.tsx.
@@ -89,11 +90,20 @@ export async function getForecast(
   if (!spot) throw new Error(`unknown spot: ${slug}`);
 
   const cacheKey = `${slug}:${date}:${gear}`;
-  const cached = await safeGetCached(cacheKey);
-  if (cached) return cached;
+
+  // Climatology refreshes per calendar month, not per day — fetch it in
+  // parallel with the daily forecast and overlay it on the returned object
+  // so a stale daily cache doesn't hold back fresh historic data (or vice
+  // versa). Historic failures are non-fatal: the UI hides its card when null.
+  const [cached, historic] = await Promise.all([
+    safeGetCached(cacheKey),
+    safeGetHistoric(spot, date, gear),
+  ]);
+
+  if (cached) return { ...cached, historic };
 
   const raw = await fetchRawForecast(spot, date, gear);
-  const forecast = adaptRawToForecast(raw, spot);
+  const forecast = adaptRawToForecast(raw, spot, historic);
   await safeSetCached(cacheKey, forecast);
   return forecast;
 }
@@ -115,6 +125,43 @@ async function safeSetCached(key: string, value: Forecast): Promise<void> {
   }
 }
 
+function historicCacheKey(slug: string, date: string, gear: GearKey): string {
+  // Per calendar month — climatology doesn't change day-to-day.
+  const yyyymm = date.slice(0, 7);
+  return `${HISTORIC_NAMESPACE}:${slug}:${yyyymm}:${gear}`;
+}
+
+async function safeGetHistoric(
+  spot: Spot,
+  date: string,
+  gear: GearKey,
+): Promise<Historic | null> {
+  const key = historicCacheKey(spot.slug, date, gear);
+  try {
+    const cached = await getPermanent<Historic | null>(key);
+    if (cached !== null && cached !== undefined) return cached;
+  } catch (err) {
+    if (!isRedisMisconfigured(err)) console.warn("getHistoric cache failed:", err);
+  }
+
+  let historic: Historic | null = null;
+  try {
+    historic = await fetchHistoric(spot, date, gear);
+  } catch (err) {
+    console.warn("fetchHistoric failed:", err);
+    return null;
+  }
+
+  if (historic !== null) {
+    try {
+      await setPermanent(key, historic);
+    } catch (err) {
+      if (!isRedisMisconfigured(err)) console.warn("setHistoric cache failed:", err);
+    }
+  }
+  return historic;
+}
+
 /**
  * Heuristic: Upstash throws `TypeError: Failed to parse URL from /pipeline`
  * when env vars are missing. Don't spam the log for this expected dev case.
@@ -134,7 +181,26 @@ export async function fetchRawForecast(
   date: string,
   gear: GearKey = "auto",
 ): Promise<RawForecast> {
-  const payload = {
+  const payload = buildSpotPayload(spot, date, gear);
+  return invokePython<RawForecast>("forecast", payload);
+}
+
+/** Fetch monthly climatology from `/api/climatology`. Exposed for testing. */
+export async function fetchHistoric(
+  spot: Spot,
+  date: string,
+  gear: GearKey = "auto",
+): Promise<Historic | null> {
+  const payload = buildSpotPayload(spot, date, gear);
+  const body = await invokePython<{ historic: Historic | null }>(
+    "climatology",
+    payload,
+  );
+  return body.historic ?? null;
+}
+
+function buildSpotPayload(spot: Spot, date: string, gear: GearKey) {
+  return {
     slug: spot.slug,
     name: spot.name,
     region: spot.region,
@@ -148,31 +214,32 @@ export async function fetchRawForecast(
     gear,
     date,
   };
-
-  const url = forecastEndpoint(payload);
-
-  try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (res.ok) return (await res.json()) as RawForecast;
-    // Non-2xx — fall through to local script fallback below.
-  } catch {
-    // Network error in local dev (no /api/forecast route in `next dev`) —
-    // fall through.
-  }
-
-  // Local-dev escape hatch: when running on a developer machine without Vercel,
-  // `next dev` doesn't execute Python functions. We invoke the script directly.
-  // In production (VERCEL is set), this branch should never run; if it does,
-  // surface the error rather than silently masking a deploy bug.
-  if (process.env.VERCEL) {
-    throw new Error(
-      `forecast endpoint failed at ${url} (no local fallback in Vercel env)`,
-    );
-  }
-  return invokePythonFallback(payload);
 }
 
-function forecastEndpoint(payload: Record<string, unknown>): string {
+async function invokePython<T>(
+  endpoint: "forecast" | "climatology",
+  payload: Record<string, unknown>,
+): Promise<T> {
+  const url = vercelEndpoint(endpoint, payload);
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (res.ok) return (await res.json()) as T;
+    // Non-2xx — fall through to local script fallback below.
+  } catch {
+    // Network error in local dev (no route in `next dev`) — fall through.
+  }
+  if (process.env.VERCEL) {
+    throw new Error(
+      `${endpoint} endpoint failed at ${url} (no local fallback in Vercel env)`,
+    );
+  }
+  return invokePythonFallback<T>(endpoint, payload);
+}
+
+function vercelEndpoint(
+  path: "forecast" | "climatology",
+  payload: Record<string, unknown>,
+): string {
   // VERCEL_URL points to the deployment-specific hostname, which is gated by
   // Vercel's "Deployment Protection" on hobby projects (401 to anyone without
   // a Vercel session). Self-fetch from the runtime SSR pass blows up there.
@@ -193,39 +260,47 @@ function forecastEndpoint(payload: Record<string, unknown>): string {
       qs.set(k, String(v));
     }
   }
-  return `${base}/api/forecast?${qs.toString()}`;
+  return `${base}/api/${path}?${qs.toString()}`;
 }
 
 /**
- * Local-dev fallback: invoke api/forecast.py via spawnSync. Documented hack —
+ * Local-dev fallback: invoke the Python function via spawnSync. Documented hack —
  * remove once `vercel dev` is in the workflow. Tests should mock fetchRawForecast
  * rather than rely on this path.
  */
-function invokePythonFallback(payload: Record<string, unknown>): RawForecast {
+function invokePythonFallback<T>(
+  endpoint: "forecast" | "climatology",
+  payload: Record<string, unknown>,
+): T {
   // `process.cwd()` is the app working dir under `next dev`; resolve relative
   // to that. The vendored copy is created by predev so this is safe at runtime.
-  const scriptPath = path.resolve(process.cwd(), "api", "forecast.py");
+  const scriptPath = path.resolve(process.cwd(), "api", `${endpoint}.py`);
   if (!existsSync(scriptPath)) {
     throw new Error(`local fallback script missing: ${scriptPath}`);
   }
   const result = spawnSync("python3", [scriptPath, JSON.stringify(payload)], {
     encoding: "utf-8",
-    timeout: 20_000,
+    timeout: 30_000,
   });
   if (result.status !== 0) {
     throw new Error(
       `python fallback failed (${result.status}): ${result.stderr || result.stdout}`,
     );
   }
-  return JSON.parse(result.stdout) as RawForecast;
+  return JSON.parse(result.stdout) as T;
 }
 
 /**
  * Adapt the raw API payload to the `Forecast` shape the components consume.
- * The mock supplies non-forecast metadata (suggestions, welcome, historic,
- * nearby spots) until phases 4-5 derive them from real data.
+ * The mock supplies non-forecast metadata (suggestions, welcome, nearby spots)
+ * until later phases derive them from real data. Historic comes from a separate
+ * climatology fetch (null when unavailable — the UI hides its card).
  */
-export function adaptRawToForecast(raw: RawForecast, spot: Spot): Forecast {
+export function adaptRawToForecast(
+  raw: RawForecast,
+  spot: Spot,
+  historic: Historic | null = null,
+): Forecast {
   const hours: ForecastHour[] = raw.hours.map((r) => ({
     h: r.h,
     score: r.score,
@@ -258,6 +333,6 @@ export function adaptRawToForecast(raw: RawForecast, spot: Spot): Forecast {
     spots: MOCK_FORECAST.spots,
     suggestions: MOCK_FORECAST.suggestions,
     welcome: MOCK_FORECAST.welcome,
-    historic: MOCK_FORECAST.historic,
+    historic,
   };
 }
