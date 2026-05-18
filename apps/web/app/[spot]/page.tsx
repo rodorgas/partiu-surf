@@ -1,16 +1,21 @@
 // Spot page — renders a single surf forecast.
 //
 // Caching:
-//   - Upstash Redis caches the upstream API/score result for 12h (see lib/cache),
-//     keyed by spot+date+gear. The page itself renders dynamically because it
-//     reads ?gear and ?date from searchParams, but Redis keeps Open-Meteo /
-//     WorldTides calls predictable across filter switches.
+//   - Upstash Redis caches raw Open-Meteo + WorldTides responses per (slug, date),
+//     shared across every gear (see lib/openmeteo.ts, lib/tides.ts). Scoring runs
+//     per request — math over ~14 hours, cheap compared to the API roundtrips.
+//   - The Python lambda is now a pure scoring function: TS hands it the cached
+//     raw payloads and it returns scored hours. Climatology stays on the Python
+//     side with its own monthly cache.
+//   - `revalidate` makes Next.js cache the rendered output at the CDN, so warm
+//     URLs are instant. Cold paths (first hit, or gear/date switches that miss
+//     cache) fall through to <Suspense> below.
 //
 // Streaming:
 //   - The slow `getForecast` call is wrapped in <Suspense> so the page shell
 //     (skeleton with spot name + region) streams immediately. The data-bound
-//     UI fills in when the Python lambdas resolve — turns a 4–7s blank into
-//     an instant paint that progressively reveals.
+//     UI fills in when the lambdas resolve — turns a 4–7s blank into an instant
+//     paint that progressively reveals.
 
 import { Suspense, use } from "react";
 import { notFound } from "next/navigation";

@@ -14,10 +14,11 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { getCached, getPermanent, setCached, setPermanent } from "./cache";
+import { getPermanent, setPermanent } from "./cache";
 import type { Forecast, ForecastHour, Historic, TideState } from "./data";
 import { MOCK_FORECAST } from "./data";
 import type { GearKey } from "./forecast-shared";
+import { getOpenMeteoData, type OpenMeteoData } from "./openmeteo";
 import { getSpot, type Spot } from "./spots";
 import { getTideHeights, type TideHeights } from "./tides";
 
@@ -71,7 +72,6 @@ export type RawForecast = {
   gear: string;
 };
 
-const FORECAST_NAMESPACE = "forecast";
 const HISTORIC_NAMESPACE = "historic";
 
 /**
@@ -90,34 +90,37 @@ export async function getForecast(
   const spot = getSpot(slug);
   if (!spot) throw new Error(`unknown spot: ${slug}`);
 
-  const cacheKey = `${slug}:${date}:${gear}`;
-
-  // Kick off the cache check, historic, and tide fetches in parallel. Cache
-  // hit is fast (~50ms) so we wait for it before deciding whether to fire
-  // the forecast lambda. Tide moved out of the Python lambda because that
-  // lambda runs on a read-only FS and was hitting WorldTides on every cold
-  // start — see lib/tides.ts. The lambda still gets a (possibly empty)
-  // heights map from us, which it uses verbatim instead of calling
-  // WorldTides itself.
-  const cacheP = safeGetCached(cacheKey);
+  // Cache lives at the *raw API* layer — one Redis entry per (slug, date)
+  // shared across every gear. Scoring is cheap (math over ~14 hours) so we
+  // recompute it per request rather than caching N gear variants. Tide and
+  // historic also have their own caches (see lib/tides.ts, getPermanent below).
+  const openMeteoP = safeGetOpenMeteo(spot, date);
   const historicP = safeGetHistoric(spot, date, gear);
   const tideP = safeGetTide(spot, date);
 
-  const cached = await cacheP;
-  if (cached) return { ...cached, historic: await historicP };
-
-  // Tide gates the forecast call (the lambda needs the heights), so wait
-  // on it first. It was already firing in parallel since the top of this
-  // function, so this await is usually free. Historic stays in parallel
-  // with the forecast — they're the two slow tails.
-  const tide = await tideP;
-  const [historic, raw] = await Promise.all([
+  const [openMeteo, tide, historic] = await Promise.all([
+    openMeteoP,
+    tideP,
     historicP,
-    fetchRawForecast(spot, date, gear, tide),
   ]);
+
+  // Lambda now takes raw inputs and just scores — Open-Meteo + WorldTides
+  // calls all happen on the TS side so they share a single Redis cache.
+  const raw = await fetchRawForecast(spot, date, gear, openMeteo, tide);
   const forecast = adaptRawToForecast(raw, spot, historic);
-  await safeSetCached(cacheKey, forecast);
   return forecast;
+}
+
+async function safeGetOpenMeteo(
+  spot: Spot,
+  date: string,
+): Promise<OpenMeteoData | null> {
+  try {
+    return await getOpenMeteoData(spot.slug, spot.lat, spot.lon, date);
+  } catch (err) {
+    console.warn("getOpenMeteoData failed:", err);
+    return null;
+  }
 }
 
 async function safeGetTide(
@@ -129,23 +132,6 @@ async function safeGetTide(
   } catch (err) {
     console.warn("getTideHeights failed:", err);
     return null;
-  }
-}
-
-async function safeGetCached(key: string): Promise<Forecast | null> {
-  try {
-    return await getCached<Forecast>(FORECAST_NAMESPACE, key);
-  } catch (err) {
-    if (!isRedisMisconfigured(err)) console.warn("getCached failed:", err);
-    return null;
-  }
-}
-
-async function safeSetCached(key: string, value: Forecast): Promise<void> {
-  try {
-    await setCached(FORECAST_NAMESPACE, key, value);
-  } catch (err) {
-    if (!isRedisMisconfigured(err)) console.warn("setCached failed:", err);
   }
 }
 
@@ -204,6 +190,7 @@ export async function fetchRawForecast(
   spot: Spot,
   date: string,
   gear: GearKey = "auto",
+  openMeteo: OpenMeteoData | null = null,
   tideHeights: TideHeights | null = null,
 ): Promise<RawForecast> {
   const payload = buildSpotPayload(spot, date, gear);
@@ -213,6 +200,14 @@ export async function fetchRawForecast(
   (payload as Record<string, unknown>).tideHeights = JSON.stringify(
     tideHeights ?? {},
   );
+  // Same contract for Open-Meteo: when TS supplied the data (Redis-cached),
+  // pass it through and the lambda skips its own Open-Meteo fetch. When
+  // unavailable (e.g. fetch failed), omit so the lambda falls back to a
+  // direct call — degrades gracefully.
+  if (openMeteo) {
+    (payload as Record<string, unknown>).marine = JSON.stringify(openMeteo.marine);
+    (payload as Record<string, unknown>).forecast = JSON.stringify(openMeteo.atmo);
+  }
   return invokePython<RawForecast>("forecast", payload);
 }
 

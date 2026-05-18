@@ -48,33 +48,38 @@ describe("POST /api/refresh", () => {
     expect((await POST(req({}, "wrong"))).status).toBe(403);
   });
 
-  it("clears the whole forecast namespace and leaves tide alone", async () => {
-    await setCached("forecast", "itamambuca:2026-05-11", { ok: 1 });
-    await setCached("forecast", "arpoador:2026-05-11", { ok: 2 });
+  it("clears the whole openmeteo namespace and leaves tide alone", async () => {
+    await setCached("openmeteo:itamambuca", "2026-05-11", { ok: 1 });
+    await setCached("openmeteo:arpoador", "2026-05-11", { ok: 2 });
     // Tide entries are deliberately preserved — historical tide doesn't
     // change and re-fetching burns WorldTides credits for the same numbers.
     await setCached("tide:-23.0_-43.2", "2026-05-11", { ok: 3 });
 
     const res = await POST(req(null, "shh"));
     expect(res.status).toBe(200);
-    expect(await getCached("forecast", "itamambuca:2026-05-11")).toBeNull();
-    expect(await getCached("forecast", "arpoador:2026-05-11")).toBeNull();
+    expect(await getCached("openmeteo:itamambuca", "2026-05-11")).toBeNull();
+    expect(await getCached("openmeteo:arpoador", "2026-05-11")).toBeNull();
     expect(await getCached("tide:-23.0_-43.2", "2026-05-11")).toEqual({ ok: 3 });
     expect(revalidateTagMock).toHaveBeenCalledWith("forecast", "max");
   });
 
   it("clears a single spot+date and still leaves tide alone", async () => {
-    await setCached("forecast", "itamambuca:2026-05-11", { ok: 1 });
-    await setCached("forecast", "itamambuca:2026-05-12", { ok: 2 });
+    await setCached("openmeteo:itamambuca", "2026-05-11", { ok: 1 });
+    await setCached("openmeteo:itamambuca", "2026-05-12", { ok: 2 });
+    await setCached("openmeteo:arpoador", "2026-05-11", { ok: 3 });
     await setCached("tide:-23.0_-43.2", "2026-05-11", { t: 1 });
 
     const res = await POST(
       req({ slug: "itamambuca", date: "2026-05-11" }, "shh"),
     );
     expect(res.status).toBe(200);
-    expect(await getCached("forecast", "itamambuca:2026-05-11")).toBeNull();
-    expect(await getCached("forecast", "itamambuca:2026-05-12")).toEqual({
+    expect(await getCached("openmeteo:itamambuca", "2026-05-11")).toBeNull();
+    // Other dates and other spots untouched.
+    expect(await getCached("openmeteo:itamambuca", "2026-05-12")).toEqual({
       ok: 2,
+    });
+    expect(await getCached("openmeteo:arpoador", "2026-05-11")).toEqual({
+      ok: 3,
     });
     expect(await getCached("tide:-23.0_-43.2", "2026-05-11")).toEqual({ t: 1 });
   });
