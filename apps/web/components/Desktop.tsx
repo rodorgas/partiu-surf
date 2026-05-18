@@ -28,6 +28,7 @@ import type { Forecast } from "@/lib/data";
 import { breakTypeLabel, dirLabel, resolveAutoGear } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
+import { NewsletterPopover, NewsletterTrigger } from "@/components/Newsletter";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
 import { SideCards } from "@/components/SideCards";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
@@ -1092,6 +1093,27 @@ function DatePicker({
   );
 }
 
+function NewsletterButton({ currentSpot }: { currentSpot: string }) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <NewsletterTrigger
+        ref={triggerRef}
+        open={open}
+        onClick={() => setOpen((o) => !o)}
+      />
+      {open && (
+        <NewsletterPopover
+          initialPicks={SPOTS[currentSpot] ? [currentSpot] : []}
+          anchorRef={triggerRef}
+          onClose={() => setOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
 function TopBar({
   spot,
   gear,
@@ -1119,6 +1141,7 @@ function TopBar({
       <SpotPicker key={spot} spot={spot} gear={gear} date={date} today={today} />
       <DatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
       <GearPicker spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
+      <NewsletterButton currentSpot={spot} />
     </div>
   );
 }
