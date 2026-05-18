@@ -1046,17 +1046,20 @@ export function FilterChips({
   autoGear,
   date,
   today,
+  newsletter,
 }: {
   spot: string;
   gear?: GearKey;
   autoGear?: string | null;
   date: string;
   today: string;
+  newsletter?: React.ReactNode;
 }) {
   return (
     <div style={{ display: "flex", gap: 6, padding: "0 16px", overflowX: "auto" }}>
       <MobileDatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
       <MobileGearPicker spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
+      {newsletter}
     </div>
   );
 }
