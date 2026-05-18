@@ -240,7 +240,7 @@ function PeekContents({ data, chat }: { data: Forecast; chat: ChatProps }) {
           <Sparkles size={14} />
         </span>
         <span style={{ fontSize: 13, color: C.ink, fontWeight: 600 }}>
-          Pergunta pro copiloto
+          Pergunta pro assistente
         </span>
         <span
           style={{
@@ -349,7 +349,7 @@ function FullContents({ onClose, chat }: { onClose: () => void; chat: ChatProps 
             boxShadow: "0 0 8px #7adcd2",
           }}
         />
-        <span style={{ fontSize: 13, fontWeight: 600 }}>copiloto · partiu.surf</span>
+        <span style={{ fontSize: 13, fontWeight: 600 }}>assistente · partiu.surf</span>
         <button
           type="button"
           onClick={onClose}
