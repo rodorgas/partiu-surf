@@ -5,12 +5,15 @@
  * the binary Redis protocol — they're not wire-compatible, and bridging them
  * is more work than the methods we actually use here.
  *
- * Supports the subset of methods used by `cache.ts`:
+ * Supports the subset of methods used by callers:
  *   - get<T>(key)
  *   - set(key, value, { ex }?)
  *   - del(...keys)
  *   - scan(cursor, { match, count })
  *   - ttl(key)            (used by tests, returns -1 / -2 / seconds)
+ *   - sadd(key, ...members)
+ *   - srem(key, ...members)
+ *   - smembers(key)
  *   - ping()
  *   - flushall()          (test helper)
  */
@@ -103,6 +106,46 @@ export class MemoryRedis {
     }
     if (entry.expiresAt === null) return -1;
     return Math.max(0, Math.ceil((entry.expiresAt - this.now()) / 1000));
+  }
+
+  private readSet(key: string): Set<string> | undefined {
+    const entry = this.read(key);
+    if (!entry) return undefined;
+    if (!(entry.value instanceof Set)) return undefined;
+    return entry.value as Set<string>;
+  }
+
+  async sadd(key: string, ...members: string[]): Promise<number> {
+    let set = this.readSet(key);
+    if (!set) {
+      set = new Set<string>();
+      this.store.set(key, { value: set, expiresAt: null });
+    }
+    let added = 0;
+    for (const m of members) {
+      if (!set.has(m)) {
+        set.add(m);
+        added++;
+      }
+    }
+    return added;
+  }
+
+  async srem(key: string, ...members: string[]): Promise<number> {
+    const set = this.readSet(key);
+    if (!set) return 0;
+    let removed = 0;
+    for (const m of members) {
+      if (set.delete(m)) removed++;
+    }
+    if (set.size === 0) this.store.delete(key);
+    return removed;
+  }
+
+  async smembers(key: string): Promise<string[]> {
+    const set = this.readSet(key);
+    if (!set) return [];
+    return Array.from(set);
   }
 
   /** Test helper — not part of @upstash/redis surface. */

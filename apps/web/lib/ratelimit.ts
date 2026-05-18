@@ -22,6 +22,19 @@ export const chatLimiter = new Ratelimit({
 });
 
 /**
+ * Newsletter signup — slow path, mostly defended against drive-by spam and
+ * accidental double-clicks. Confirmation flow already prevents fake addresses
+ * from landing in the active list, but every signup writes ~4 Redis keys and
+ * will eventually trigger an outbound email/WhatsApp once delivery ships.
+ * 5 requests per 10 minutes per IP.
+ */
+export const subscribeLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, "10 m"),
+  prefix: "rl:subscribe",
+});
+
+/**
  * Best-effort client identifier from request headers.
  * Order: x-forwarded-for[0] → x-real-ip → 'anon'.
  */
