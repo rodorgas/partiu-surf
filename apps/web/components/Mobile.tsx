@@ -18,6 +18,7 @@ import {
 import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
+import { SideCards } from "@/components/SideCards";
 import type { GearKey } from "@/lib/forecast-shared";
 import { todayISO } from "@/lib/date";
 
@@ -60,6 +61,7 @@ function Body({
       <div style={{ height: 12 }} />
       <HourList rows={data.hours} />
       <ScoreMethodology variant="mobile" />
+      <SideCards data={data} isToday={date === today} date={date} variant="mobile" />
       <div style={{ height: 240 }} />
     </>
   );
