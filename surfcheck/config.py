@@ -21,7 +21,7 @@ SPOTS = {
 
 # Gear profile: power curve (upper_threshold, score) where power = swell_height × period.
 # Captures the H × T interaction — 1m × 13s ≠ 1m × 7s.
-# danger_h triggers ⚠️ when wind is also ruim.
+# danger_h triggers ⚠️ when wind is also bad.
 #
 # Four real shapes covering the volume/maneuverability axis. We deliberately
 # do NOT model fish/hybrid as a separate category: with only H×T as input the

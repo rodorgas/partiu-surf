@@ -104,10 +104,10 @@ Deploys go to the **personal** account, not work:
 The user's default `vercel` CLI auth points at their **work** account. To run CLI commands against this project, pass the personal token explicitly — it lives in the repo root at `.vercel-token` (gitignored, never commit). Pattern:
 
 ```bash
-_ZO_DOCTOR=0 vercel <cmd> --token "$(cat /Users/rodrigo.orem/Documents/personal/surf/.vercel-token)"
+vercel <cmd> --token "$(cat /Users/rodrigo.orem/Documents/personal/surf/.vercel-token)"
 ```
 
-The `_ZO_DOCTOR=0` prefix silences a zoxide warning that the CLI emits on stderr in this shell. Don't inline the token value in any committed file — re-read `.vercel-token` each time.
+Don't inline the token value in any committed file — re-read `.vercel-token` each time.
 
 ### Deployment gotchas
 
