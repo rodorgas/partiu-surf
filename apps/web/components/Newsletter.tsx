@@ -116,14 +116,14 @@ export const NewsletterTrigger = forwardRef<
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 8,
-        padding: compact ? "8px 12px 8px 10px" : "10px 14px 10px 12px",
+        gap: compact ? 5 : 8,
+        padding: compact ? "7px 11px 7px 10px" : "10px 14px 10px 12px",
         borderRadius: 999,
         border: "none",
         cursor: "pointer",
         fontFamily: N.sans,
-        fontWeight: 600,
-        fontSize: compact ? 12.5 : 13.5,
+        fontWeight: compact ? 500 : 600,
+        fontSize: compact ? 12 : 13.5,
         letterSpacing: "-0.005em",
         background: active ? N.deep : N.surface,
         color: active ? "#fff" : N.ink,
@@ -131,21 +131,18 @@ export const NewsletterTrigger = forwardRef<
           ? `0 6px 16px rgba(10,58,68,0.22)`
           : `0 1px 0 ${N.rule}`,
         transition: "background 120ms ease, color 120ms ease, box-shadow 120ms ease",
+        whiteSpace: "nowrap",
       }}
     >
-      <span
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 22,
-          height: 22,
-          borderRadius: "50%",
-          background: active ? "rgba(255,255,255,0.14)" : N.foam,
-          color: active ? "#fff" : N.teal,
-        }}
-      >
-        <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
+      {compact ? (
+        <svg
+          viewBox="0 0 16 16"
+          width="13"
+          height="13"
+          fill="none"
+          aria-hidden
+          style={{ color: active ? "#fff" : N.teal }}
+        >
           <rect
             x="1.5"
             y="3.5"
@@ -163,18 +160,51 @@ export const NewsletterTrigger = forwardRef<
             strokeLinecap="round"
           />
         </svg>
-      </span>
+      ) : (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 22,
+            height: 22,
+            borderRadius: "50%",
+            background: active ? "rgba(255,255,255,0.14)" : N.foam,
+            color: active ? "#fff" : N.teal,
+          }}
+        >
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden>
+            <rect
+              x="1.5"
+              y="3.5"
+              width="13"
+              height="9"
+              rx="1.6"
+              stroke="currentColor"
+              strokeWidth="1.4"
+            />
+            <path
+              d="M2 5.2 Q 5 8 8 7 T 14 6.4"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              fill="none"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
+      )}
       <span>Boletim</span>
       <span
         style={{
-          marginLeft: 2,
-          padding: "1px 7px",
+          marginLeft: compact ? 0 : 2,
+          padding: compact ? "0 5px" : "1px 7px",
           borderRadius: 999,
           background: N.coral,
           color: "#fff",
-          fontSize: 10.5,
+          fontSize: compact ? 9 : 10.5,
           fontWeight: 700,
           letterSpacing: "0.04em",
+          lineHeight: compact ? "13px" : undefined,
         }}
       >
         NOVO
