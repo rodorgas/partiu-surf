@@ -10,6 +10,12 @@ import { revalidateTag } from "next/cache";
 import { invalidate } from "@/lib/cache";
 
 const NAMESPACE = "forecast";
+// Tide entries (`tide:{lat0.1}_{lon0.1}:{date}`) are deliberately NOT busted
+// here. The TS-side tide cache only stores successful WorldTides responses
+// (errors are dropped, not cached), and the underlying data doesn't change
+// retroactively — re-fetching a 2024-01-15 tide chart would burn a credit
+// for the same numbers. If we ever need a tide bust (e.g. station data
+// migration), it should be a separate, intentional operation.
 
 export async function POST(req: Request) {
   const secret = process.env.REFRESH_SECRET;

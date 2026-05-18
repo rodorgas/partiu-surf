@@ -19,6 +19,7 @@ import type { Forecast, ForecastHour, Historic, TideState } from "./data";
 import { MOCK_FORECAST } from "./data";
 import type { GearKey } from "./forecast-shared";
 import { getSpot, type Spot } from "./spots";
+import { getTideHeights, type TideHeights } from "./tides";
 
 // Re-export client-safe helpers so server callers can keep importing
 // everything from `lib/forecast`. Client components must import directly
@@ -91,24 +92,44 @@ export async function getForecast(
 
   const cacheKey = `${slug}:${date}:${gear}`;
 
-  // Kick off the cache check and historic fetch in parallel; the cache hit
-  // is fast (~50ms) so we wait for it before deciding whether to fire the
-  // forecast lambda — that avoids wasted Python invocations on cache hits
-  // while keeping the forecast on the cold-cache critical path parallel
-  // with historic (historic is the bottleneck at ~2.9s vs forecast ~1.4s).
+  // Kick off the cache check, historic, and tide fetches in parallel. Cache
+  // hit is fast (~50ms) so we wait for it before deciding whether to fire
+  // the forecast lambda. Tide moved out of the Python lambda because that
+  // lambda runs on a read-only FS and was hitting WorldTides on every cold
+  // start — see lib/tides.ts. The lambda still gets a (possibly empty)
+  // heights map from us, which it uses verbatim instead of calling
+  // WorldTides itself.
   const cacheP = safeGetCached(cacheKey);
   const historicP = safeGetHistoric(spot, date, gear);
+  const tideP = safeGetTide(spot, date);
 
   const cached = await cacheP;
   if (cached) return { ...cached, historic: await historicP };
 
+  // Tide gates the forecast call (the lambda needs the heights), so wait
+  // on it first. It was already firing in parallel since the top of this
+  // function, so this await is usually free. Historic stays in parallel
+  // with the forecast — they're the two slow tails.
+  const tide = await tideP;
   const [historic, raw] = await Promise.all([
     historicP,
-    fetchRawForecast(spot, date, gear),
+    fetchRawForecast(spot, date, gear, tide),
   ]);
   const forecast = adaptRawToForecast(raw, spot, historic);
   await safeSetCached(cacheKey, forecast);
   return forecast;
+}
+
+async function safeGetTide(
+  spot: Spot,
+  date: string,
+): Promise<TideHeights | null> {
+  try {
+    return await getTideHeights(spot.lat, spot.lon, date);
+  } catch (err) {
+    console.warn("getTideHeights failed:", err);
+    return null;
+  }
 }
 
 async function safeGetCached(key: string): Promise<Forecast | null> {
@@ -183,8 +204,15 @@ export async function fetchRawForecast(
   spot: Spot,
   date: string,
   gear: GearKey = "auto",
+  tideHeights: TideHeights | null = null,
 ): Promise<RawForecast> {
   const payload = buildSpotPayload(spot, date, gear);
+  // Always pass `tideHeights` (even when empty) so the lambda knows TS
+  // owns the WorldTides call and doesn't fall back to its own fetch.
+  // Absent param ⇒ CLI/local-dev path inside the lambda.
+  (payload as Record<string, unknown>).tideHeights = JSON.stringify(
+    tideHeights ?? {},
+  );
   return invokePython<RawForecast>("forecast", payload);
 }
 

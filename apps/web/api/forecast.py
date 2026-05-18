@@ -176,16 +176,32 @@ def build_forecast(params: dict) -> dict:
     # (name, lat, lon, facing, shelter, break_type, tide_pref, size_tol)
     spot_tuple = (name, lat, lon, facing, shelter, break_type, tide_pref, size_tol)
 
-    # Run the three upstream lookups in parallel — pure I/O, no shared state.
-    # Cuts cold-lambda latency from ~1.4s (3 sequential calls) to the slowest
-    # single call (~0.5s).
-    with ThreadPoolExecutor(max_workers=3) as ex:
-        marine_f = ex.submit(fetch_marine, lat, lon, date)
-        forecast_f = ex.submit(fetch_forecast, lat, lon, date)
-        tide_f = ex.submit(_tide_lookup, lat, lon, date, 1)
-        marine = marine_f.result()
-        forecast_data = forecast_f.result()
-        tide = tide_f.result()
+    # Tide ownership: when the caller passes `tideHeights` (even empty), it
+    # has already handled WorldTides on the TS side with Redis caching — see
+    # apps/web/lib/tides.ts. We use the heights map verbatim and skip the
+    # WorldTides API call entirely. Without that param (CLI or local dev)
+    # we fall back to the original three-way parallel fetch.
+    tide_heights_raw = params.get("tideHeights")
+    if tide_heights_raw is not None:
+        heights = json.loads(tide_heights_raw) if tide_heights_raw else {}
+        if heights:
+            from surfcheck.tides import score_tide, tide_state
+            tide = (heights, tide_state, score_tide)
+        else:
+            tide = None
+        with ThreadPoolExecutor(max_workers=2) as ex:
+            marine_f = ex.submit(fetch_marine, lat, lon, date)
+            forecast_f = ex.submit(fetch_forecast, lat, lon, date)
+            marine = marine_f.result()
+            forecast_data = forecast_f.result()
+    else:
+        with ThreadPoolExecutor(max_workers=3) as ex:
+            marine_f = ex.submit(fetch_marine, lat, lon, date)
+            forecast_f = ex.submit(fetch_forecast, lat, lon, date)
+            tide_f = ex.submit(_tide_lookup, lat, lon, date, 1)
+            marine = marine_f.result()
+            forecast_data = forecast_f.result()
+            tide = tide_f.result()
 
     tz = ZoneInfo(TZ)
     if date:
