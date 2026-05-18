@@ -991,6 +991,10 @@ export function NewsletterPopover({
     Math.min(popWidth - 28, triggerCenterX - left - 11),
   );
 
+  // Cap the popover at the viewport (with a small bottom gutter); inner body
+  // scrolls instead of pushing the footer off-screen.
+  const maxHeight = Math.max(240, window.innerHeight - top - 16);
+
   return createPortal(
     <div
       ref={rootRef}
@@ -1002,6 +1006,7 @@ export function NewsletterPopover({
         top,
         left,
         width: popWidth,
+        maxHeight,
         background: N.surface,
         borderRadius: 22,
         boxShadow: `0 1px 0 ${N.rule}, 0 24px 60px rgba(10,58,68,0.18)`,
@@ -1009,6 +1014,8 @@ export function NewsletterPopover({
         color: N.ink,
         overflow: "hidden",
         zIndex: 60,
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <svg
@@ -1026,103 +1033,114 @@ export function NewsletterPopover({
         <path d="M0 10 L11 0 L22 10 Z" fill="#f6c98a" />
       </svg>
 
-      <HorizonHeader width={POPOVER_WIDTH} showClose onClose={onClose} />
-
-      {/* Title */}
-      <div style={{ padding: "14px 22px 6px" }}>
-        <h3
-          style={{
-            margin: 0,
-            fontFamily: N.display,
-            fontSize: 24,
-            lineHeight: 1.05,
-            color: N.deep,
-            fontWeight: 700,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          O mar avisa.
-          <br />
-          <span style={{ color: N.coral }}>A gente repassa.</span>
-        </h3>
-        <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: N.inkDim }}>
-          {freq === "weekly" ? (
-            <>
-              Resumo dos seus picos favoritos toda{" "}
-              <b style={{ color: N.deep }}>{weeklyLabel}</b> à tarde — pra você já
-              planejar a semana.
-            </>
-          ) : (
-            <>
-              Pico do dia, todo dia às <b style={{ color: N.deep }}>06h</b> — direto
-              no celular, antes do café.
-            </>
-          )}
-        </p>
+      <div style={{ flex: "0 0 auto" }}>
+        <HorizonHeader width={POPOVER_WIDTH} showClose onClose={onClose} />
       </div>
 
-      {/* Body */}
+      {/* Scrollable body — title + fields */}
       <div
         style={{
-          padding: "14px 22px 0",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
+          flex: "1 1 auto",
+          overflowY: "auto",
+          overscrollBehavior: "contain",
         }}
       >
-        <div>
-          <FieldLabel>Frequência</FieldLabel>
-          <div style={{ display: "flex", gap: 8 }}>
-            <FreqCard
-              selected={freq === "daily"}
-              onClick={() => setFreq("daily")}
-              title="Diário"
-              sub="06h, todo dia"
-            />
-            <FreqCard
-              selected={freq === "weekly"}
-              onClick={() => setFreq("weekly")}
-              title="Semanal"
-              sub={`${WEEKDAYS[weekday].short.toLowerCase()}, 17h`}
-              star
-            />
+        {/* Title */}
+        <div style={{ padding: "14px 22px 6px" }}>
+          <h3
+            style={{
+              margin: 0,
+              fontFamily: N.display,
+              fontSize: 24,
+              lineHeight: 1.05,
+              color: N.deep,
+              fontWeight: 700,
+              letterSpacing: "-0.02em",
+            }}
+          >
+            O mar avisa.
+            <br />
+            <span style={{ color: N.coral }}>A gente repassa.</span>
+          </h3>
+          <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: N.inkDim }}>
+            {freq === "weekly" ? (
+              <>
+                Resumo dos seus picos favoritos toda{" "}
+                <b style={{ color: N.deep }}>{weeklyLabel}</b> à tarde — pra você já
+                planejar a semana.
+              </>
+            ) : (
+              <>
+                Pico do dia, todo dia às <b style={{ color: N.deep }}>06h</b> — direto
+                no celular, antes do café.
+              </>
+            )}
+          </p>
+        </div>
+
+        {/* Fields */}
+        <div
+          style={{
+            padding: "14px 22px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          <div>
+            <FieldLabel>Frequência</FieldLabel>
+            <div style={{ display: "flex", gap: 8 }}>
+              <FreqCard
+                selected={freq === "daily"}
+                onClick={() => setFreq("daily")}
+                title="Diário"
+                sub="06h, todo dia"
+              />
+              <FreqCard
+                selected={freq === "weekly"}
+                onClick={() => setFreq("weekly")}
+                title="Semanal"
+                sub={`${WEEKDAYS[weekday].short.toLowerCase()}, 17h`}
+                star
+              />
+            </div>
+            {freq === "weekly" && (
+              <WeekdayPicker weekday={weekday} setWeekday={setWeekday} />
+            )}
           </div>
-          {freq === "weekly" && (
-            <WeekdayPicker weekday={weekday} setWeekday={setWeekday} />
-          )}
-        </div>
 
-        <div>
-          <FieldLabel>Canal</FieldLabel>
-          <Segmented
-            value={channel}
-            onChange={setChannel}
-            options={[
-              { value: "email", label: "E-mail", icon: <Mail size={13} /> },
-              {
-                value: "whatsapp",
-                label: "WhatsApp",
-                icon: <MessageCircle size={13} />,
-              },
-            ]}
+          <div>
+            <FieldLabel>Canal</FieldLabel>
+            <Segmented
+              value={channel}
+              onChange={setChannel}
+              options={[
+                { value: "email", label: "E-mail", icon: <Mail size={13} /> },
+                {
+                  value: "whatsapp",
+                  label: "WhatsApp",
+                  icon: <MessageCircle size={13} />,
+                },
+              ]}
+            />
+            <ChannelInput channel={channel} />
+          </div>
+
+          <PicosSection
+            pickedSpots={pickedSpots}
+            otherSpots={otherSpots}
+            picked={picked}
+            togglePick={togglePick}
+            query={query}
+            setQuery={setQuery}
           />
-          <ChannelInput channel={channel} />
         </div>
-
-        <PicosSection
-          pickedSpots={pickedSpots}
-          otherSpots={otherSpots}
-          picked={picked}
-          togglePick={togglePick}
-          query={query}
-          setQuery={setQuery}
-        />
       </div>
 
       {/* Footer */}
       <div
         style={{
-          marginTop: 16,
+          flex: "0 0 auto",
           padding: "14px 22px 18px",
           background: N.panel,
           borderTop: `1px solid ${N.rule}`,
@@ -1185,6 +1203,35 @@ export function NewsletterSheet({
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+
+  // Drag-to-dismiss: track vertical offset while the grabber is held.
+  // touchStartY captures the touch's starting Y; dragY is the current offset
+  // applied to the sheet. Releasing past DRAG_DISMISS_PX closes the sheet;
+  // otherwise it springs back to 0.
+  const DRAG_DISMISS_PX = 120;
+  const touchStartY = useRef<number | null>(null);
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+
+  const onGrabberTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+    setDragging(true);
+  };
+  const onGrabberTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY.current == null) return;
+    const dy = e.touches[0].clientY - touchStartY.current;
+    setDragY(Math.max(0, dy));
+  };
+  const onGrabberTouchEnd = () => {
+    setDragging(false);
+    if (dragY > DRAG_DISMISS_PX) {
+      onClose();
+    } else {
+      setDragY(0);
+    }
+    touchStartY.current = null;
+  };
+
   if (!mounted) return null;
 
   const weeklyLabel = WEEKDAYS[weekday].long;
@@ -1211,10 +1258,11 @@ export function NewsletterSheet({
         style={{
           position: "absolute",
           inset: 0,
-          background: "rgba(10,42,50,0.45)",
+          background: `rgba(10,42,50,${Math.max(0.15, 0.45 - dragY / 600).toFixed(3)})`,
           border: "none",
           padding: 0,
           cursor: "default",
+          transition: dragging ? "none" : "background 200ms ease",
         }}
       />
 
@@ -1235,8 +1283,34 @@ export function NewsletterSheet({
           fontFamily: N.sans,
           color: N.ink,
           overflow: "hidden",
+          transform: `translate3d(0, ${dragY}px, 0)`,
+          transition: dragging
+            ? "none"
+            : "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
+          touchAction: "pan-y",
         }}
       >
+        {/* Drag zone — covers the visible handle and a bit of slack for the
+            thumb. Touch listeners drag the sheet; releasing past threshold
+            dismisses. */}
+        <div
+          data-testid="newsletter-sheet-grabber"
+          onTouchStart={onGrabberTouchStart}
+          onTouchMove={onGrabberTouchMove}
+          onTouchEnd={onGrabberTouchEnd}
+          onTouchCancel={onGrabberTouchEnd}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 32,
+            zIndex: 4,
+            touchAction: "none",
+            cursor: "grab",
+          }}
+        />
+
         <HorizonHeader
           width={420}
           height={118}
@@ -1245,52 +1319,50 @@ export function NewsletterSheet({
           onClose={onClose}
         />
 
-        {/* Title */}
-        <div style={{ padding: "14px 20px 4px", flex: "0 0 auto" }}>
-          <h3
-            style={{
-              margin: 0,
-              fontFamily: N.display,
-              fontSize: 24,
-              lineHeight: 1.05,
-              color: N.deep,
-              fontWeight: 700,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            O mar avisa.
-            <br />
-            <span style={{ color: N.coral }}>A gente repassa.</span>
-          </h3>
-          <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: N.inkDim }}>
-            {freq === "weekly" ? (
-              <>
-                Resumo dos seus picos toda{" "}
-                <b style={{ color: N.deep }}>{weeklyLabel}</b> à tarde — pra você já
-                planejar a semana.
-              </>
-            ) : (
-              <>
-                Pico do dia, todo dia às <b style={{ color: N.deep }}>06h</b> —
-                antes do café.
-              </>
-            )}
-          </p>
-        </div>
-
-        {/* Body (scrolls) */}
+        {/* Body (scrolls — includes title) */}
         <div
           style={{
             flex: "1 1 auto",
             overflowY: "auto",
             overscrollBehavior: "contain",
             WebkitOverflowScrolling: "touch",
-            padding: "12px 20px 16px",
+            padding: "14px 20px 18px",
             display: "flex",
             flexDirection: "column",
             gap: 18,
           }}
         >
+          <div>
+            <h3
+              style={{
+                margin: 0,
+                fontFamily: N.display,
+                fontSize: 24,
+                lineHeight: 1.05,
+                color: N.deep,
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+              }}
+            >
+              O mar avisa.
+              <br />
+              <span style={{ color: N.coral }}>A gente repassa.</span>
+            </h3>
+            <p style={{ margin: "8px 0 0", fontSize: 13, lineHeight: 1.5, color: N.inkDim }}>
+              {freq === "weekly" ? (
+                <>
+                  Resumo dos seus picos toda{" "}
+                  <b style={{ color: N.deep }}>{weeklyLabel}</b> à tarde — pra
+                  você já planejar a semana.
+                </>
+              ) : (
+                <>
+                  Pico do dia, todo dia às <b style={{ color: N.deep }}>06h</b> —
+                  antes do café.
+                </>
+              )}
+            </p>
+          </div>
           <div>
             <FieldLabel>Frequência</FieldLabel>
             <div style={{ display: "flex", gap: 8 }}>
