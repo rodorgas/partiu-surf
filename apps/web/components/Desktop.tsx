@@ -33,6 +33,7 @@ import { SideCards } from "@/components/SideCards";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
 import { dateKicker, formatDateLong, forecastDates, todayISO } from "@/lib/date";
+import { useNowHour } from "@/lib/useNowHour";
 
 function normalizeText(s: string): string {
   return s
@@ -1332,8 +1333,9 @@ function Hero({ data }: { data: Forecast }) {
   );
 }
 
-function HourTable({ data }: { data: Forecast }) {
+function HourTable({ data, isToday }: { data: Forecast; isToday: boolean }) {
   const max = Math.max(...data.hours.map((x) => x.score));
+  const nowHour = useNowHour(isToday);
   return (
     <div style={{ padding: "18px 28px 8px" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
@@ -1363,7 +1365,7 @@ function HourTable({ data }: { data: Forecast }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "62px 130px 80px 56px 86px 100px 70px 110px 40px",
+            gridTemplateColumns: "94px 120px 80px 56px 86px 100px 70px 110px 40px",
             padding: "10px 18px",
             fontSize: 10.5,
             color: C.inkSoft,
@@ -1386,24 +1388,54 @@ function HourTable({ data }: { data: Forecast }) {
         </div>
         {data.hours.map((r, i) => {
           const peak = r.score === max;
+          const isCurrent =
+            nowHour !== null && Number(r.h.replace("h", "")) === nowHour;
           const ink = scoreInk(r.score);
           return (
             <div
               key={r.h}
+              data-testid={isCurrent ? "hour-row-now" : undefined}
               style={{
                 display: "grid",
-                gridTemplateColumns: "62px 130px 80px 56px 86px 100px 70px 110px 40px",
+                gridTemplateColumns: "94px 120px 80px 56px 86px 100px 70px 110px 40px",
                 padding: "10px 18px",
                 alignItems: "center",
                 gap: 10,
-                background: peak ? "#fff5e2" : "transparent",
+                background: peak ? "#fff5e2" : isCurrent ? C.foam : "transparent",
+                borderLeft: isCurrent ? `3px solid ${C.teal}` : "3px solid transparent",
                 borderBottom: i < data.hours.length - 1 ? `1px solid ${C.rule}88` : "none",
                 fontSize: 14,
                 color: C.ink,
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              <span style={{ fontWeight: peak ? 700 : 500, color: peak ? C.coral : C.ink }}>{r.h}</span>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontWeight: peak ? 700 : 500,
+                  color: peak ? C.coral : C.ink,
+                }}
+              >
+                {r.h}
+                {isCurrent && (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      padding: "1px 5px",
+                      borderRadius: 999,
+                      background: C.teal,
+                      color: "#fff",
+                      fontWeight: 600,
+                      letterSpacing: "0.06em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    agora
+                  </span>
+                )}
+              </span>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ color: ink, fontWeight: 600, width: 24 }}>{r.score.toFixed(1)}</span>
                 <span
@@ -1546,7 +1578,7 @@ export function Desktop({
       <main className="surf-desktop-main" style={{ flex: "1 1 auto", overflow: "auto" }}>
         <TopBar spot={spot} gear={gear} date={d} today={t} />
         <Hero data={data} />
-        <HourTable data={data} />
+        <HourTable data={data} isToday={d === t} />
         <SideCards data={data} isToday={d === t} date={d} variant="desktop" />
       </main>
     </div>

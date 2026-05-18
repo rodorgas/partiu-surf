@@ -20,6 +20,7 @@ import { breakTypeLabel, dirLabel } from "@/lib/data";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
 import { dateKicker, formatDateLong, forecastDates } from "@/lib/date";
+import { useNowHour } from "@/lib/useNowHour";
 
 function normalizeText(s: string): string {
   return s
@@ -627,8 +628,15 @@ export function SummaryCard({
   );
 }
 
-export function HourList({ rows }: { rows: ForecastHour[] }) {
+export function HourList({
+  rows,
+  isToday = false,
+}: {
+  rows: ForecastHour[];
+  isToday?: boolean;
+}) {
   const peakMax = Math.max(...rows.map((x) => x.score));
+  const nowHour = useNowHour(isToday);
   return (
     <div
       style={{
@@ -668,24 +676,28 @@ export function HourList({ rows }: { rows: ForecastHour[] }) {
       </div>
       {rows.map((r, i) => {
         const peak = r.score === peakMax;
+        const isCurrent =
+          nowHour !== null && Number(r.h.replace("h", "")) === nowHour;
         const ink = scoreInk(r.score);
         return (
           <div
             key={r.h}
+            data-testid={isCurrent ? "mobile-hour-row-now" : undefined}
             style={{
               display: "grid",
               gridTemplateColumns: "42px 26px 1fr 64px 60px 26px",
-              padding: "8px 14px",
+              padding: "8px 11px 8px 14px",
               alignItems: "center",
               gap: 8,
-              background: peak ? "#fff5e2" : "transparent",
+              background: peak ? "#fff5e2" : isCurrent ? C.foam : "transparent",
+              borderLeft: isCurrent ? `3px solid ${C.teal}` : "3px solid transparent",
               borderBottom: i < rows.length - 1 ? `1px solid ${C.rule}66` : "none",
               fontSize: 12.5,
               color: C.ink,
               fontVariantNumeric: "tabular-nums",
             }}
           >
-            <span style={{ fontWeight: peak ? 700 : 500, color: peak ? C.coral : C.ink }}>{r.h}</span>
+            <span style={{ fontWeight: peak ? 700 : 500, color: peak ? C.coral : isCurrent ? C.teal : C.ink }}>{r.h}</span>
             <span style={{ color: ink, fontWeight: 600, textAlign: "right" }}>{r.score.toFixed(1)}</span>
             <span style={{ height: 5, background: C.foam, borderRadius: 999, overflow: "hidden" }}>
               <span
