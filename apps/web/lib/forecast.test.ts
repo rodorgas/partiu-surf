@@ -85,14 +85,14 @@ describe("adaptRawToForecast", () => {
       avgScore: 5.5,
       avgSwH: 1.1,
       avgSwT: 10.2,
-      sampleHours: 1234,
+      sampleDays: 90,
       yearsBack: 3,
     });
     expect(out.historic).toEqual({
       avgScore: 5.5,
       avgSwH: 1.1,
       avgSwT: 10.2,
-      sampleHours: 1234,
+      sampleDays: 90,
       yearsBack: 3,
     });
   });
@@ -185,7 +185,7 @@ describe("getForecast", () => {
   it("threads historic through to the returned Forecast when climatology returns it", async () => {
     const raw = buildRawForecast();
     const histPayload = {
-      historic: { avgScore: 5.5, avgSwH: 1.1, avgSwT: 10, sampleHours: 720, yearsBack: 3 },
+      historic: { avgScore: 5.5, avgSwH: 1.1, avgSwT: 10, sampleDays: 90, yearsBack: 3 },
     };
     mockEndpoints(raw, histPayload);
 
