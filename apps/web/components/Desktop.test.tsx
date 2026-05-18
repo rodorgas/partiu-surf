@@ -46,6 +46,24 @@ describe("<Desktop />", () => {
       expect(screen.getByRole("button", { name: new RegExp(s.replace(/\?/g, "\\?")) })).toBeInTheDocument();
     }
   });
+
+  it("gear chip shows resolved gear when Auto is active and hours carry winners", () => {
+    const dataWithWinners = {
+      ...MOCK_FORECAST,
+      hours: MOCK_FORECAST.hours.map((h) => ({ ...h, winner: "shortboard" })),
+    };
+    render(<Desktop data={dataWithWinners} spot="itamambuca" gear="auto" />);
+    const toggle = screen.getByTestId("gear-picker-toggle");
+    expect(toggle.textContent).toContain("Auto");
+    expect(toggle.textContent).toContain("Shortboard");
+  });
+
+  it("gear chip falls back to plain Auto when no hour carries a winner", () => {
+    render(<Desktop data={MOCK_FORECAST} spot="itamambuca" gear="auto" />);
+    const toggle = screen.getByTestId("gear-picker-toggle");
+    expect(toggle.textContent).toContain("Auto");
+    expect(toggle.textContent).not.toContain("·");
+  });
 });
 
 // ---- chat behavior (Phase 4) ---------------------------------------------

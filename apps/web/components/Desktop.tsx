@@ -25,13 +25,15 @@ import {
   X,
 } from "lucide-react";
 import type { Forecast } from "@/lib/data";
-import { breakTypeLabel, dirLabel } from "@/lib/data";
+import { breakTypeLabel, dirLabel, resolveAutoGear } from "@/lib/data";
 import { useChat } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
+import { SideCards } from "@/components/SideCards";
 import { SPOTS, STATE_NAMES, STATE_ORDER, type Spot, type StateUF } from "@/lib/spots";
 import { buildSpotUrl, FORECAST_DAY_COUNT, type GearKey } from "@/lib/forecast-shared";
-import { dateKicker, formatDateLong, forecastDates, todayISO, TZ } from "@/lib/date";
+import { dateKicker, formatDateLong, forecastDates, todayISO } from "@/lib/date";
+import { useNowHour } from "@/lib/useNowHour";
 
 function normalizeText(s: string): string {
   return s
@@ -491,17 +493,25 @@ function ChatPanel({ data, spot }: { data: Forecast; spot: string }) {
 function GearPicker({
   spot,
   gear,
+  autoGear,
   date,
   today,
 }: {
   spot: string;
   gear: GearKey;
+  autoGear?: string | null;
   date: string;
   today: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  const label = GEAR_LABELS[gear];
+  const resolvedAuto =
+    gear === "auto" && autoGear && autoGear in GEAR_LABELS
+      ? GEAR_LABELS[autoGear as GearKey]
+      : null;
+  const label = resolvedAuto
+    ? `${GEAR_LABELS[gear]} · ${resolvedAuto}`
+    : GEAR_LABELS[gear];
 
   useEffect(() => {
     if (!open) return;
@@ -1085,11 +1095,13 @@ function DatePicker({
 function TopBar({
   spot,
   gear,
+  autoGear,
   date,
   today,
 }: {
   spot: string;
   gear: GearKey;
+  autoGear?: string | null;
   date: string;
   today: string;
 }) {
@@ -1106,7 +1118,7 @@ function TopBar({
     >
       <SpotPicker key={spot} spot={spot} gear={gear} date={date} today={today} />
       <DatePicker key={date} spot={spot} gear={gear} date={date} today={today} />
-      <GearPicker spot={spot} gear={gear} date={date} today={today} />
+      <GearPicker spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
     </div>
   );
 }
@@ -1352,8 +1364,9 @@ function Hero({ data }: { data: Forecast }) {
   );
 }
 
-function HourTable({ data }: { data: Forecast }) {
+function HourTable({ data, isToday }: { data: Forecast; isToday: boolean }) {
   const max = Math.max(...data.hours.map((x) => x.score));
+  const nowHour = useNowHour(isToday);
   return (
     <div style={{ padding: "18px 28px 8px" }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 10 }}>
@@ -1406,24 +1419,35 @@ function HourTable({ data }: { data: Forecast }) {
         </div>
         {data.hours.map((r, i) => {
           const peak = r.score === max;
+          const isCurrent =
+            nowHour !== null && Number(r.h.replace("h", "")) === nowHour;
           const ink = scoreInk(r.score);
           return (
             <div
               key={r.h}
+              data-testid={isCurrent ? "hour-row-now" : undefined}
               style={{
                 display: "grid",
                 gridTemplateColumns: "62px 130px 80px 56px 86px 100px 70px 110px 40px",
                 padding: "10px 18px",
                 alignItems: "center",
                 gap: 10,
-                background: peak ? "#fff5e2" : "transparent",
+                background: peak ? "#fff5e2" : isCurrent ? C.foam : "transparent",
+                borderLeft: isCurrent ? `3px solid ${C.teal}` : "3px solid transparent",
                 borderBottom: i < data.hours.length - 1 ? `1px solid ${C.rule}88` : "none",
                 fontSize: 14,
                 color: C.ink,
                 fontVariantNumeric: "tabular-nums",
               }}
             >
-              <span style={{ fontWeight: peak ? 700 : 500, color: peak ? C.coral : C.ink }}>{r.h}</span>
+              <span
+                style={{
+                  fontWeight: peak ? 700 : 500,
+                  color: peak ? C.coral : isCurrent ? C.teal : C.ink,
+                }}
+              >
+                {r.h}
+              </span>
               <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ color: ink, fontWeight: 600, width: 24 }}>{r.score.toFixed(1)}</span>
                 <span
@@ -1536,506 +1560,6 @@ function HourTable({ data }: { data: Forecast }) {
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div
-      style={{
-        background: C.surface,
-        borderRadius: 20,
-        padding: "18px 20px 16px",
-        boxShadow: `0 1px 0 ${C.rule}`,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 13,
-          color: C.deep,
-          fontWeight: 600,
-          marginBottom: 14,
-          fontFamily: C.display,
-          letterSpacing: "-0.005em",
-        }}
-      >
-        {title}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function SwellRose({ data }: { data: Forecast }) {
-  const cx = 85,
-    cy = 85,
-    r = 68;
-  const facing = data.spot.facing;
-  const swDeg = data.hours[0]?.swDir ?? facing;
-  const a1 = ((facing - 45 - 90) * Math.PI) / 180;
-  const a2 = ((facing + 45 - 90) * Math.PI) / 180;
-  const x1 = cx + r * Math.cos(a1),
-    y1 = cy + r * Math.sin(a1);
-  const x2 = cx + r * Math.cos(a2),
-    y2 = cy + r * Math.sin(a2);
-  const a = ((swDeg - 90) * Math.PI) / 180;
-  const ox = cx + (r - 2) * Math.cos(a),
-    oy = cy + (r - 2) * Math.sin(a);
-  const ix = cx - 30 * Math.cos(a - Math.PI),
-    iy = cy - 30 * Math.sin(a - Math.PI);
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <svg viewBox="0 0 170 170" width="160" height="160">
-        <circle cx={cx} cy={cy} r={r} fill={C.foam} />
-        <path
-          d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`}
-          fill={C.sun}
-          fillOpacity="0.35"
-        />
-        <circle cx={cx} cy={cy} r="3.5" fill={C.deep} />
-        {([["N", 0], ["L", 90], ["S", 180], ["O", 270]] as const).map(([lbl, d]) => {
-          const ang = ((d - 90) * Math.PI) / 180;
-          const x = cx + (r + 10) * Math.cos(ang),
-            y = cy + (r + 10) * Math.sin(ang) + 4;
-          return (
-            <text
-              key={lbl}
-              x={x}
-              y={y}
-              fontSize="11"
-              fill={C.inkDim}
-              textAnchor="middle"
-              fontFamily={C.sans}
-              fontWeight="600"
-            >
-              {lbl}
-            </text>
-          );
-        })}
-        <g>
-          <line x1={ox} y1={oy} x2={ix} y2={iy} stroke={C.deep} strokeWidth="2.5" strokeLinecap="round" />
-          <polygon
-            points={`${ix - 6},${iy - 6} ${ix + 6},${iy} ${ix - 6},${iy + 6}`}
-            transform={`rotate(${swDeg - 90} ${ix} ${iy})`}
-            fill={C.deep}
-          />
-        </g>
-      </svg>
-      <div style={{ flex: 1, fontSize: 13, lineHeight: 1.5 }}>
-        <div
-          style={{
-            color: C.inkDim,
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-          }}
-        >
-          swell
-        </div>
-        <div style={{ color: C.deep, fontWeight: 700, fontSize: 18 }}>
-          {Math.round(swDeg)}° {dirLabel(swDeg)}
-        </div>
-        <div
-          style={{
-            color: C.inkDim,
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-            marginTop: 8,
-          }}
-        >
-          orientação do pico
-        </div>
-        <div style={{ color: C.coral, fontWeight: 700, fontSize: 14 }}>
-          {Math.round(facing)}° {dirLabel(facing)}
-        </div>
-        {(() => {
-          const offset = Math.min(
-            Math.abs(((swDeg - facing + 540) % 360) - 180),
-            180,
-          );
-          const aligned = offset <= 30;
-          return (
-            <div
-              style={{
-                marginTop: 10,
-                padding: "5px 10px",
-                background: aligned ? `${C.green}22` : `${C.amber}22`,
-                color: aligned ? C.green : C.amber,
-                borderRadius: 999,
-                fontSize: 11.5,
-                fontWeight: 600,
-                display: "inline-block",
-              }}
-            >
-              offset {Math.round(offset)}° · {aligned ? "alinhado" : "desalinhado"}
-            </div>
-          );
-        })()}
-      </div>
-    </div>
-  );
-}
-
-function parseHourLabel(s: string): number {
-  return Number(s.replace("h", ""));
-}
-
-function TideArc({ data, isToday }: { data: Forecast; isToday: boolean }) {
-  const [nowHour, setNowHour] = useState<number | null>(null);
-  useEffect(() => {
-    if (!isToday) return;
-    const tick = () => {
-      const h = Number(
-        new Date().toLocaleString("en-US", {
-          timeZone: TZ,
-          hour: "2-digit",
-          hour12: false,
-        }),
-      );
-      setNowHour(Number.isFinite(h) ? h : null);
-    };
-    tick();
-    const id = setInterval(tick, 60_000);
-    return () => clearInterval(id);
-  }, [isToday]);
-
-  const tideHours = data.hours.filter((r) => r.hasTide);
-  const w = 380,
-    h = 150,
-    pad = 14;
-
-  if (tideHours.length < 2) {
-    return (
-      <div
-        style={{
-          height: 150,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: C.inkDim,
-          fontSize: 13,
-        }}
-      >
-        sem dados de maré
-      </div>
-    );
-  }
-
-  const tideValues = tideHours.map((r) => r.tideH);
-  const minV = Math.min(...tideValues);
-  const maxV = Math.max(...tideValues);
-  const padded = Math.max(0.2, maxV - minV) * 0.15;
-  const lo = minV - padded;
-  const hi = maxV + padded;
-  const vScale = Math.max(0.01, hi - lo);
-
-  const startHour = parseHourLabel(tideHours[0].h);
-  const endHour = parseHourLabel(tideHours[tideHours.length - 1].h);
-  const hourSpan = Math.max(1, endHour - startHour);
-
-  const baseY = h - pad - 22;
-  const pts = tideHours.map((r) => {
-    const t = parseHourLabel(r.h);
-    const x = pad + ((t - startHour) / hourSpan) * (w - pad * 2);
-    const y = baseY - ((r.tideH - lo) / vScale) * (h - pad * 2 - 22);
-    return { x, y, v: r.tideH, hour: t };
-  });
-  const path = pts
-    .map((p, i) => `${i ? "L" : "M"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-    .join(" ");
-  const fill = `${path} L ${pts[pts.length - 1].x.toFixed(1)} ${baseY} L ${pts[0].x.toFixed(1)} ${baseY} Z`;
-
-  const lows: number[] = [];
-  const highs: number[] = [];
-  for (let i = 1; i < pts.length - 1; i++) {
-    const prev = pts[i - 1].v;
-    const cur = pts[i].v;
-    const next = pts[i + 1].v;
-    if (cur < prev && cur <= next) lows.push(i);
-    else if (cur > prev && cur >= next) highs.push(i);
-  }
-
-  const midHour = Math.round((startHour + endHour) / 2);
-  const tickHours = Array.from(new Set([startHour, midHour, endHour]));
-
-  let nowIdx: number | null = null;
-  if (isToday && nowHour !== null && nowHour >= startHour && nowHour <= endHour) {
-    const found = pts.findIndex((p) => p.hour === nowHour);
-    nowIdx = found === -1 ? null : found;
-  }
-
-  const labelLeftEdge = 8;
-  const labelRightEdge = w - 8;
-  const clampLabelX = (x: number, anchor: "start" | "middle" | "end") => {
-    if (anchor === "middle") {
-      return Math.max(labelLeftEdge + 32, Math.min(labelRightEdge - 32, x));
-    }
-    if (anchor === "start") {
-      return Math.max(labelLeftEdge, Math.min(labelRightEdge - 60, x));
-    }
-    return Math.max(labelLeftEdge + 60, Math.min(labelRightEdge, x));
-  };
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${w} ${h}`} width="100%" height="150">
-        <defs>
-          <linearGradient id="tidegrad" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={C.teal2} stopOpacity="0.35" />
-            <stop offset="100%" stopColor={C.teal2} stopOpacity="0.0" />
-          </linearGradient>
-        </defs>
-        <path d={fill} fill="url(#tidegrad)" />
-        <path d={path} stroke={C.teal} strokeWidth="2.5" fill="none" strokeLinecap="round" />
-        <g>
-          {lows.map((i) => (
-            <g key={`lo${i}`}>
-              <circle cx={pts[i].x} cy={pts[i].y} r="3" fill={C.amber} />
-              <text
-                x={clampLabelX(pts[i].x, "middle")}
-                y={pts[i].y + 18}
-                fontSize="10"
-                fill={C.amber}
-                textAnchor="middle"
-                fontFamily={C.sans}
-                fontWeight="600"
-              >
-                {`baixa ${String(pts[i].hour).padStart(2, "0")}h · ${pts[i].v.toFixed(1)}m`}
-              </text>
-            </g>
-          ))}
-          {highs.map((i) => (
-            <g key={`hi${i}`}>
-              <circle cx={pts[i].x} cy={pts[i].y} r="3" fill={C.coral} />
-              <text
-                x={clampLabelX(pts[i].x, "middle")}
-                y={pts[i].y - 8}
-                fontSize="10"
-                fill={C.coral}
-                textAnchor="middle"
-                fontFamily={C.sans}
-                fontWeight="600"
-              >
-                {`alta ${String(pts[i].hour).padStart(2, "0")}h · ${pts[i].v.toFixed(1)}m`}
-              </text>
-            </g>
-          ))}
-        </g>
-        {nowIdx !== null && (
-          <g>
-            <line
-              x1={pts[nowIdx].x}
-              y1={pad}
-              x2={pts[nowIdx].x}
-              y2={baseY}
-              stroke={C.deep}
-              strokeDasharray="3 3"
-              strokeWidth="1"
-            />
-            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="5" fill={C.deep} />
-            <circle cx={pts[nowIdx].x} cy={pts[nowIdx].y} r="9" fill={C.deep} fillOpacity="0.18" />
-            <text
-              x={clampLabelX(pts[nowIdx].x + 8, "start")}
-              y={pad + 12}
-              fontSize="11"
-              fontFamily={C.sans}
-              fontWeight="700"
-              fill={C.deep}
-            >
-              {`agora · ${pts[nowIdx].v.toFixed(1)}m`}
-            </text>
-          </g>
-        )}
-        {tickHours.map((t) => {
-          const i = pts.findIndex((p) => p.hour === t);
-          if (i === -1) return null;
-          return (
-            <text
-              key={t}
-              x={pts[i].x}
-              y={h - 4}
-              fontSize="10"
-              textAnchor="middle"
-              fill={C.inkSoft}
-              fontFamily={C.sans}
-            >{`${String(t).padStart(2, "0")}h`}</text>
-          );
-        })}
-      </svg>
-    </div>
-  );
-}
-
-const MONTH_FMT = new Intl.DateTimeFormat("pt-BR", { month: "long", timeZone: TZ });
-const round1 = (n: number) => Math.round(n * 10) / 10;
-
-function Hist({ data, date }: { data: Forecast; date: string }) {
-  if (!data.historic) {
-    return (
-      <div
-        style={{
-          height: 150,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: C.inkDim,
-          fontSize: 13,
-        }}
-      >
-        sem dados históricos
-      </div>
-    );
-  }
-  const peakIdx = data.hours.reduce(
-    (best, h, i, arr) => (h.score > arr[best].score ? i : best),
-    0,
-  );
-  const peak = data.hours[peakIdx];
-  const todayScore = peak?.score ?? data.spot.todayPeak ?? 0;
-  const todayH = peak?.swH ?? 0;
-  const todayT = peak?.swT ?? 0;
-  const { avgScore, avgSwH, avgSwT } = data.historic;
-
-  const rows = [
-    { label: "Score", today: round1(todayScore), avg: avgScore, max: 10, unit: "" },
-    {
-      label: "Altura",
-      today: round1(todayH),
-      avg: avgSwH,
-      max: Math.max(3, Math.ceil(Math.max(todayH, avgSwH))),
-      unit: "m",
-    },
-    {
-      label: "Período",
-      today: Math.round(todayT),
-      avg: avgSwT,
-      max: Math.max(18, Math.ceil(Math.max(todayT, avgSwT))),
-      unit: "s",
-    },
-  ];
-
-  const delta = avgScore > 0 ? ((todayScore - avgScore) / avgScore) * 100 : 0;
-  const above = delta >= 0;
-  const pct = Math.round(Math.abs(delta));
-  const monthName = MONTH_FMT.format(new Date(`${date}T12:00:00`));
-  const summaryLabel = above ? "acima da média" : "abaixo da média";
-  const SummaryIcon = above ? ArrowUp : ArrowDown;
-  const detail = `${pct}% ${above ? "acima" : "abaixo"} da média de ${monthName}`;
-  const accent = above ? C.coral : C.teal;
-  const bg = above ? `${C.sun}22` : `${C.teal2}22`;
-  const noteColor = above ? C.amber : C.teal;
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {rows.map((r) => (
-        <div key={r.label}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              fontSize: 12,
-              color: C.inkDim,
-              marginBottom: 5,
-            }}
-          >
-            <span style={{ fontWeight: 500 }}>{r.label}</span>
-            <span>
-              <b style={{ color: C.coral }}>
-                {r.today}
-                {r.unit || ""}
-              </b>{" "}
-              <span style={{ color: C.inkSoft }}>
-                vs {r.avg}
-                {r.unit || ""} média
-              </span>
-            </span>
-          </div>
-          <div style={{ position: "relative", height: 8, background: C.foam, borderRadius: 999 }}>
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                height: "100%",
-                width: `${(r.avg / r.max) * 100}%`,
-                background: C.teal2,
-                opacity: 0.35,
-                borderRadius: 999,
-              }}
-            />
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                top: -1,
-                height: 10,
-                width: `${(r.today / r.max) * 100}%`,
-                background: C.coral,
-                borderRadius: 999,
-              }}
-            />
-          </div>
-        </div>
-      ))}
-      <div
-        style={{
-          marginTop: 4,
-          padding: "10px 14px",
-          borderRadius: 14,
-          fontSize: 12.5,
-          background: bg,
-          color: noteColor,
-          lineHeight: 1.5,
-        }}
-      >
-        <b style={{ color: accent, display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <SummaryIcon size={12} /> {summaryLabel}
-        </b>
-        <br />
-        <span style={{ color: C.inkDim }}>{detail}</span>
-      </div>
-    </div>
-  );
-}
-
-function SideCards({
-  data,
-  isToday,
-  date,
-}: {
-  data: Forecast;
-  isToday: boolean;
-  date: string;
-}) {
-  const tideHours = data.hours.filter((r) => r.hasTide);
-  const tideTitle =
-    tideHours.length >= 2
-      ? `Maré · ${tideHours[0].h}–${tideHours[tideHours.length - 1].h}`
-      : "Maré";
-  return (
-    <div
-      className="surf-side-cards"
-      style={{
-        padding: "14px 28px 32px",
-        display: "grid",
-        gridTemplateColumns: "1fr 1.1fr 1fr",
-        gap: 16,
-      }}
-    >
-      <Card title="Direção do swell">
-        <SwellRose data={data} />
-      </Card>
-      <Card title={tideTitle}>
-        <TideArc data={data} isToday={isToday} />
-      </Card>
-      <Card title="Comparado à média">
-        <Hist data={data} date={date} />
-      </Card>
-    </div>
-  );
-}
-
 export function Desktop({
   data,
   spot,
@@ -2051,6 +1575,7 @@ export function Desktop({
 }) {
   const t = today ?? todayISO();
   const d = date ?? t;
+  const autoGear = resolveAutoGear(data.hours);
   return (
     <div
       style={{
@@ -2064,10 +1589,10 @@ export function Desktop({
     >
       <ChatPanel data={data} spot={spot} />
       <main className="surf-desktop-main" style={{ flex: "1 1 auto", overflow: "auto" }}>
-        <TopBar spot={spot} gear={gear} date={d} today={t} />
+        <TopBar spot={spot} gear={gear} autoGear={autoGear} date={d} today={t} />
         <Hero data={data} />
-        <SideCards data={data} isToday={d === t} date={d} />
-        <HourTable data={data} />
+        <HourTable data={data} isToday={d === t} />
+        <SideCards data={data} isToday={d === t} date={d} variant="desktop" />
       </main>
     </div>
   );
