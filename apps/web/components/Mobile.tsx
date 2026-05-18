@@ -18,10 +18,12 @@ import {
 } from "@/components/mobile/Shared";
 import { useChat, type ChatTurn, type ChatStatus, type ChatError } from "@/lib/useChat";
 import { Markdown } from "@/components/Markdown";
+import { NewsletterSheet, NewsletterTrigger } from "@/components/Newsletter";
 import { ScoreMethodology } from "@/components/ScoreMethodology";
 import { SideCards } from "@/components/SideCards";
 import type { GearKey } from "@/lib/forecast-shared";
 import { todayISO } from "@/lib/date";
+import { SPOTS } from "@/lib/spots";
 
 export const SNAPS = { peek: 18, half: 52, full: 92 } as const;
 export type SheetState = keyof typeof SNAPS;
@@ -46,18 +48,29 @@ function Body({
   gear,
   date,
   today,
+  onNewsletterOpen,
 }: {
   data: Forecast;
   spot: string;
   gear: GearKey;
   date: string;
   today: string;
+  onNewsletterOpen: () => void;
 }) {
   const autoGear = resolveAutoGear(data.hours);
   return (
     <>
       <AppBar spot={spot} gear={gear} date={date} today={today} />
-      <FilterChips spot={spot} gear={gear} autoGear={autoGear} date={date} today={today} />
+      <FilterChips
+        spot={spot}
+        gear={gear}
+        autoGear={autoGear}
+        date={date}
+        today={today}
+        newsletter={
+          <NewsletterTrigger open={false} onClick={onNewsletterOpen} compact />
+        }
+      />
       <div style={{ height: 12 }} />
       <SummaryCard data={data} />
       <div style={{ height: 12 }} />
@@ -730,6 +743,7 @@ export function Mobile({
   const t = today ?? todayISO();
   const d = date ?? t;
   const [state, setState] = useState<SheetState>("peek");
+  const [newsletterOpen, setNewsletterOpen] = useState(false);
   const { history, streaming, status, error, send, dismissError } = useChat(spot);
   const dim = state === "full";
 
@@ -774,8 +788,21 @@ export function Mobile({
           WebkitOverflowScrolling: "touch",
         }}
       >
-        <Body data={data} spot={spot} gear={gear} date={d} today={t} />
+        <Body
+          data={data}
+          spot={spot}
+          gear={gear}
+          date={d}
+          today={t}
+          onNewsletterOpen={() => setNewsletterOpen(true)}
+        />
       </div>
+      {newsletterOpen && (
+        <NewsletterSheet
+          initialPicks={SPOTS[spot] ? [spot] : []}
+          onClose={() => setNewsletterOpen(false)}
+        />
+      )}
       {dim && (
         <div
           data-testid="mobile-dim"
