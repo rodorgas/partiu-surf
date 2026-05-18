@@ -52,17 +52,28 @@ def _fetch_year_month(lat: float, lon: float, year: int, month: int):
 
 def _aggregate(marine: dict, forecast: dict, spot_tuple: tuple, gear_key: str,
                gear_profiles: dict):
-    """Walk aligned hourly rows and accumulate sums + counts. Score uses the
-    same gear selection logic as the live forecast so the comparison is fair."""
+    """For each historical day, take the daylight-hour peak; aggregate across
+    days. This mirrors the live forecast's `today_peak` (max score over the
+    05h–18h daylight slice) so today vs. average is apples-to-apples — peak vs.
+    peak, not peak vs. flat hourly mean."""
     mh = marine.get("hourly") or {}
     fh = forecast.get("hourly") or {}
     if not mh or not fh:
         return 0, 0.0, 0.0, 0.0
     f_idx = {t: j for j, t in enumerate(fh.get("time") or [])}
-    n = 0
-    sh_sum = sp_sum = sc_sum = 0.0
+
+    # day → (best_score, sh_at_peak, sp_at_peak)
+    days: dict[str, tuple[float, float, float]] = {}
+
     for mi, t in enumerate(mh.get("time") or []):
         if t not in f_idx:
+            continue
+        try:
+            hour = int(t[11:13])
+        except (ValueError, IndexError):
+            continue
+        # Daylight slice — matches the UI's "05h–18h · janela diurna" filter.
+        if not (5 <= hour <= 18):
             continue
         sh = mh["swell_wave_height"][mi]
         sp = mh["swell_wave_period"][mi]
@@ -83,10 +94,15 @@ def _aggregate(marine: dict, forecast: dict, spot_tuple: tuple, gear_key: str,
             score, _ = compute(
                 sh, sp, sd, ws, wd, wg, spot_tuple, gear_profiles[gear_key],
             )
-        sh_sum += sh
-        sp_sum += sp
-        sc_sum += score
-        n += 1
+        day = t[:10]
+        cur = days.get(day)
+        if cur is None or score > cur[0]:
+            days[day] = (score, sh, sp)
+
+    n = len(days)
+    sh_sum = sum(d[1] for d in days.values())
+    sp_sum = sum(d[2] for d in days.values())
+    sc_sum = sum(d[0] for d in days.values())
     return n, sh_sum, sp_sum, sc_sum
 
 
@@ -130,6 +146,6 @@ def compute_monthly_avg(
         "avgScore": round(sc_total / total_n, 2),
         "avgSwH": round(sh_total / total_n, 2),
         "avgSwT": round(sp_total / total_n, 1),
-        "sampleHours": total_n,
+        "sampleDays": total_n,
         "yearsBack": years_back,
     }

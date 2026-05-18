@@ -39,11 +39,14 @@ export type NearbySpot = {
 };
 
 export type Historic = {
+  /** Mean of each historical day's peak score (apples-to-apples with today's `PICO HOJE`). */
   avgScore: number;
+  /** Mean swell height at the peak hour of each historical day. */
   avgSwH: number;
+  /** Mean swell period at the peak hour of each historical day. */
   avgSwT: number;
-  /** How many hourly samples backed the averages (debug/quality signal). */
-  sampleHours?: number;
+  /** How many distinct days backed the averages (debug/quality signal). */
+  sampleDays?: number;
   /** Number of past calendar-month years aggregated. */
   yearsBack?: number;
 };
