@@ -58,7 +58,10 @@ export default async function SpotPage({
   // Keyed so client-side navigation between dates/gears re-suspends instead
   // of showing stale content during refetch.
   return (
-    <Suspense key={`${spot}:${date}:${gear}`} fallback={<SpotSkeleton spot={spot} />}>
+    <Suspense
+      key={`${spot}:${date}:${gear}`}
+      fallback={<SpotSkeleton spot={spot} gear={gear} date={date} today={today} />}
+    >
       <SpotContent
         forecastPromise={forecastPromise}
         spot={spot}
